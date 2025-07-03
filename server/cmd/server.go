@@ -7,12 +7,12 @@ import (
 
 func main() {
 	fmt.Println("Sending prompt...")
-	prompt := "hey there"
+	prompt := "hey thereeqweqwewq"
 	resp, err := llm.SendPrompt(prompt)
 	if err != nil {
 		panic(err)
 	}
-	response, err := llm.ParseResponse(&resp.Body)
+	response, err := llm.ParseResponse(resp.Body)
 	if err != nil {
 		panic(err)
 	}

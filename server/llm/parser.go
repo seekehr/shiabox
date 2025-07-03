@@ -16,12 +16,12 @@ type ResponseChunk struct {
 	Response string `json:"response"`
 }
 
-func ParseResponse(body *io.ReadCloser) (string, error) {
-	defer (*body).Close()
+func ParseResponse(body io.ReadCloser) (string, error) {
+	defer body.Close()
 	var fullResponse string
 	var chunk ResponseChunk
 
-	scanner := bufio.NewScanner(*body)
+	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), bufferSize)
 	for scanner.Scan() {
 		line := scanner.Text()

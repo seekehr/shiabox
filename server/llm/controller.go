@@ -18,7 +18,7 @@ const (
 
 func SendPrompt(prompt string) (*http.Response, error) {
 	request := OllamaRequest{
-		Model:  "phi",
+		Model:  "mistral",
 		Prompt: prompt,
 	}
 	parsedRequest, _ := json.Marshal(request)
