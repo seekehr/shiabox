@@ -11,7 +11,6 @@ func Connect() (qdrant.PointsClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
 	client := qdrant.NewPointsClient(conn)
 	ctx := context.Background()
 	collectionName := "shiabox"

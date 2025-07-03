@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// Bismillah
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	for {

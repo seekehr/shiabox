@@ -5,6 +5,7 @@ import (
 	"server/llm"
 )
 
+// Bismillah
 func main() {
 	fmt.Println("Sending prompt...")
 	prompt := "hey thereeqweqwewq"
