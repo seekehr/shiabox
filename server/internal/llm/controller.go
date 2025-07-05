@@ -6,18 +6,14 @@ import (
 	"net/http"
 )
 
-// ollamaRequest Request format for the API
-type ollamaRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-}
-
 const (
 	llmUrl = "http://localhost:11434/api/generate"
 )
 
-func Initialise() {
-
+// ollamaRequest Request format for the API
+type ollamaRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
 }
 
 func SendPrompt(prompt string) (*http.Response, error) {
