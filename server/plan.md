@@ -24,3 +24,6 @@ The input (embedded) + the chunks returned by qdrant (also embedded) will then b
 sent to the LLM (Mistral). Mistral will then handle sorting the chunks and basically
 generating a human-readable/friendly statement that will return the semantics of the
 best/most similar chunk(s).
+
+`Todo:`
+- Setup.go's vector init likely has deadlock issues... work on it.
