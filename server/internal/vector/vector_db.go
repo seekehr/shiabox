@@ -7,43 +7,60 @@ import (
 	"fmt"
 	"github.com/qdrant/go-client/qdrant"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"server/internal/constants"
 	"strconv"
 )
 
 const (
-	collectionName = "shiabox"
+	CollectionName = "shiabox"
 )
 
 type Db struct {
-	client qdrant.PointsClient
+	Client qdrant.PointsClient
 }
 
 func Connect() (*Db, error) {
-	conn, err := grpc.NewClient("localhost:6333")
+	conn, err := grpc.NewClient(
+		"localhost:6334", // 6333 is the http server port
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return nil, err
 	}
 	client := qdrant.NewPointsClient(conn)
 	ctx := context.Background()
 
-	_, err = qdrant.NewCollectionsClient(conn).Create(ctx, &qdrant.CreateCollection{
-		CollectionName: collectionName,
-		VectorsConfig: &qdrant.VectorsConfig{
-			Config: &qdrant.VectorsConfig_Params{
-				Params: &qdrant.VectorParams{
-					Size:     1536,
-					Distance: qdrant.Distance_Cosine,
-				},
-			},
-		},
-	})
+	collClient := qdrant.NewCollectionsClient(conn)
 
+	_, err = collClient.Get(ctx, &qdrant.GetCollectionInfoRequest{CollectionName: CollectionName})
 	if err != nil {
-		return nil, err
+		// only create collection if it's not found
+		if status.Code(err) == codes.NotFound {
+			_, err = collClient.Create(ctx, &qdrant.CreateCollection{
+				CollectionName: CollectionName,
+				VectorsConfig: &qdrant.VectorsConfig{
+					Config: &qdrant.VectorsConfig_Params{
+						Params: &qdrant.VectorParams{
+							Size:     1024,
+							Distance: qdrant.Distance_Cosine,
+						},
+					},
+				},
+			})
+
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
+
 	return &Db{
-		client: client,
+		Client: client,
 	}, nil
 }
 
@@ -66,17 +83,17 @@ func (db *Db) Add(vector []constants.HadithEmbedding) error {
 		}
 		ahadithAsPoints[i] = qdrantPoint
 	}
-	upsert, err := db.client.Upsert(context.Background(), &qdrant.UpsertPoints{
-		CollectionName: collectionName,
+	upsert, err := db.Client.Upsert(context.Background(), &qdrant.UpsertPoints{
+		CollectionName: CollectionName,
 		Points:         ahadithAsPoints,
 	})
 
 	if err != nil {
 		return err
 	}
-	status := upsert.GetResult().GetStatus()
-	if status != qdrant.UpdateStatus_Acknowledged && status != qdrant.UpdateStatus_Completed {
-		return fmt.Errorf("error adding ahadith to vector db. status: %d", status)
+	getStatus := upsert.GetResult().GetStatus()
+	if getStatus != qdrant.UpdateStatus_Acknowledged && getStatus != qdrant.UpdateStatus_Completed {
+		return fmt.Errorf("error adding ahadith to vector db. status: %d", getStatus)
 	}
 
 	return nil
