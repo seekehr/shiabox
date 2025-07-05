@@ -91,8 +91,8 @@ func EmbedBatch(contents []string, reuseClient *http.Client) ([][]float32, error
 
 func EmbedAhadith(chunk []constants.HadithChunk, reuseClient *http.Client) ([]constants.HadithEmbedding, error) {
 	contents := make([]string, len(chunk))
-	for i, chunk := range chunk {
-		contents[i] = chunk.Content
+	for i, c := range chunk {
+		contents[i] = c.Content
 	}
 	embeddings, err := EmbedBatch(contents, reuseClient)
 	if err != nil {
@@ -148,7 +148,7 @@ func EmbedBook(path string, bookName string) error {
 			Timeout: 30 * time.Second,
 		}
 	)
-	workerChan := make(chan struct{}, workerCount)
+	workerChan := make(chan struct{}, workerCount) // need to enforce this to prevent too many http reqs
 	embeddedAhadith := make([]constants.HadithEmbedding, totalChunks)
 
 	for i := 0; i < totalChunks; i += batchSize {

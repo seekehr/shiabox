@@ -1,16 +1,15 @@
-## STEP 1
+## STEP 1 [DONE]
 
 So, basically. The first requirement is to extract just the text content (without formatting) from the PDFS.
 Since we will rely on a vector database for accuracy, the second requirement
-is to parse this text into `chunks` that can be stored in our `collection` (one collection)
-only for now, of the vector database (qdrant).
+is to parse this text into `chunks`.
 
-## STEP 2
+## STEP 2 [DONE]
 
 Now, we are not going to store the text directly because it wouldn't be very LLM-friendly.
 So instead, we are going to generate EMBEDDINGS (float values) of the ahadith content so
 information like semantics can be better represented, and this will be done through
-another machine learning algorithm (TY ollama <3).
+another machine learning algorithm (TY ollama <3). This will be fed to the vector database.
 
 ## STEP 3
 
