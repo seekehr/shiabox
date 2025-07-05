@@ -2,18 +2,18 @@ package main
 
 import (
 	"fmt"
-	"server/llm"
+	llm2 "server/internal/llm"
 )
 
 // Bismillah
 func main() {
 	fmt.Println("Sending prompt...")
 	prompt := "hey thereeqweqwewq"
-	resp, err := llm.SendPrompt(prompt)
+	resp, err := llm2.SendPrompt(prompt)
 	if err != nil {
 		panic(err)
 	}
-	response, err := llm.ParseResponse(resp.Body)
+	response, err := llm2.ParseResponse(resp.Body)
 	if err != nil {
 		panic(err)
 	}

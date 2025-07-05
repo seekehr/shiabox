@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"server/llm"
+	llm2 "server/internal/llm"
 	"strings"
 )
 
@@ -22,13 +22,13 @@ func main() {
 		prompt := strings.TrimSpace(input)
 		fmt.Println("Sending prompt...")
 
-		resp, err := llm.SendPrompt(prompt)
+		resp, err := llm2.SendPrompt(prompt)
 		if err != nil {
 			fmt.Printf("Error sending prompt: %v\n", err)
 			continue
 		}
 
-		response, err := llm.ParseResponse(resp.Body)
+		response, err := llm2.ParseResponse(resp.Body)
 		if err != nil {
 			fmt.Printf("Error parsing response: %v\n", err)
 			continue

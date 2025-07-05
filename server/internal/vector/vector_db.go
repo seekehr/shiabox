@@ -6,7 +6,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-func Connect() (qdrant.PointsClient, error) {
+type Db struct {
+	client qdrant.PointsClient
+}
+
+func Connect() (*Db, error) {
 	conn, err := grpc.NewClient("localhost:6333")
 	if err != nil {
 		return nil, err
@@ -30,5 +34,11 @@ func Connect() (qdrant.PointsClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
+	return &Db{
+		client: client,
+	}, nil
+}
+
+func (db *Db) Add(vector []float32) (int64, error) {
+	return 0, nil
 }
