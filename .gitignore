@@ -3,4 +3,4 @@ client/node_modules/
 server/storage/
 server/snapshots/
 server/.qdrant-initialized
-server/logs/
+server/assets/logs/
