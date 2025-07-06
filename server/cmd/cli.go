@@ -16,6 +16,10 @@ import (
 // Bismillah
 func main() {
 	reader := bufio.NewReader(os.Stdin)
+	llmPrompt, err := llm.ReadPrompt()
+	if err != nil {
+		panic(err)
+	}
 	vectorDb, err := vector.Connect()
 	if err != nil {
 		panic(err)
@@ -31,7 +35,7 @@ func main() {
 
 		prompt := strings.TrimSpace(input)
 		// we embed the prompt first so it can be searched
-		fmt.Println("Batching prompt...")
+		fmt.Println("Embedding prompt...")
 		vectors, err := embedding.EmbedText(prompt, nil)
 		if err != nil {
 			fmt.Printf("Error embedding prompt: %v\n", err)
@@ -45,7 +49,7 @@ func main() {
 		}
 		fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
 		fmt.Println("Building prompt...")
-		parsedPrompt := llm.BuildPrompt(prompt, vectors, foundVectors)
+		parsedPrompt := llm.BuildPrompt(llmPrompt, prompt, vectors, foundVectors)
 		utils.SaveDataToDisk(parsedPrompt)
 		fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
