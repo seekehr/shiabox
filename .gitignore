@@ -1,6 +1,5 @@
 server/.idea/
 client/node_modules/
-*.txt
 server/storage/
 server/snapshots/
 server/.qdrant-initialized
