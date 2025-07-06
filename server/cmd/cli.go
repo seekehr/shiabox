@@ -6,9 +6,11 @@ import (
 	"os"
 	"server/internal/embedding"
 	"server/internal/llm"
+	"server/internal/utils"
 	"server/internal/vector"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Bismillah
@@ -44,8 +46,10 @@ func main() {
 		fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
 		fmt.Println("Building prompt...")
 		parsedPrompt := llm.BuildPrompt(prompt, vectors, foundVectors)
+		utils.SaveDataToDisk(parsedPrompt)
 		fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
+		timer := time.Now()
 		resp, err := llm.SendPrompt(parsedPrompt)
 		if err != nil {
 			fmt.Printf("Error sending prompt: %v\n", err)
@@ -58,6 +62,7 @@ func main() {
 			continue
 		}
 
+		fmt.Println("Prompt sent in " + time.Since(timer).String() + ".")
 		fmt.Println("Model:", response)
 	}
 }

@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"net/http"
+	"os"
 )
 
 func MakePostRequest(url string, data *bytes.Reader, reuseClient *http.Client) (*http.Response, error) {
@@ -19,4 +20,8 @@ func MakePostRequest(url string, data *bytes.Reader, reuseClient *http.Client) (
 		resp, err := reuseClient.Do(req)
 		return resp, err
 	}
+}
+
+func SaveDataToDisk(data string) {
+	os.WriteFile("assets/logs/data.txt", []byte(data), 0644)
 }

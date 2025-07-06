@@ -12,7 +12,7 @@ import (
 
 const (
 	llmUrl     = "http://localhost:11434/api/generate"
-	basePrompt = "You are an assistant that selects the most relevant Hadiths for the user's question based on the provided similarity scores.\n\n## Question:\n{InputText}\n\n## Candidates:\nEach hadith contains a similarity score (higher = more relevant), a book, page, and content.\n\nHadith {HadithID}\nScore: {Score}\nBook: {Book}\nPage: {Page}\nContent: {Content}\n\n=====\n\n(…repeat for each Hadith…)\n\n## Task:\n1. List the top 3 most relevant hadiths in order of similarity.\n2. For each, repeat this format:\n\nHadith {HadithID}\n{Content}\nSource: Hadith {HadithID}, Page {Page}, Book {Book}\nScore: {Score}\n\nIf unsure about relevance, say so explicitly.\n"
+	basePrompt = "You are an assistant that selects the most relevant Hadiths for the user's question based on the provided similarity scores.\n\n## Question:\n{InputText}\n\n## Candidates:\nEach hadith contains a similarity score (higher = more relevant), a book, page, and content.\n\nHadith {HadithID}\nScore: {Score}\nBook: {Book}\nPage: {Page}\nContent: {Content}\n\n=====\n\n(…repeat for each Hadith…)\n\n## Task:\n1. List the top 3 most relevant hadiths in order of similarity.\n2. For each, repeat this format:\n\nHadith {HadithID}\n{Content}\nSource: Hadith {HadithID}, Page {Page}, Book {Book}\nScore: {Score}\n\nIf unsure about relevance, say so explicitly, and make sure you always bring up the sources (perhaps analyse them yourself too to make sure they're actually relevant).\n"
 )
 
 // ollamaRequest Request format for the API
@@ -39,7 +39,6 @@ func BuildPrompt(inputText string, inputVectors []float32, similarHadith []const
 	promptBuilder.WriteString("InputText: " + inputText + "\n")
 	promptBuilder.WriteString("<START>\n")
 	for _, hadith := range similarHadith {
-		fmt.Println(hadith.Hadith)
 		promptBuilder.WriteString("Hadith: " + strconv.Itoa(hadith.Hadith) + "\n")
 		promptBuilder.WriteString("Page: " + strconv.Itoa(hadith.Page) + "\n")
 		promptBuilder.WriteString("Book: " + hadith.Book + "\n")
