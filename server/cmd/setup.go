@@ -24,6 +24,10 @@ const (
 
 func main() {
 	buf := bufio.NewScanner(os.Stdin)
+	db, err := vector.Connect()
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("Would you like to parse books or initialise the vector db? Run each in order first if you're new. (0/1)")
 	if buf.Scan() {
 		flagged, err := strconv.Atoi(buf.Text())
@@ -37,11 +41,6 @@ func main() {
 		if flagged == FlagParseBooks {
 			parseBooks()
 		} else if flagged == FlagInitVectors {
-			db, err := vector.Connect()
-			if err != nil {
-				panic(err)
-			}
-
 			initVectors(db)
 		} else {
 			panic("invalid flag: " + strconv.Itoa(flagged))

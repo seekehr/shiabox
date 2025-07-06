@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	CollectionName = "shiabox"
+	CollectionName  = "shiabox"
+	MaxResultsLimit = 10
 )
 
 type Db struct {
@@ -39,6 +40,7 @@ func Connect() (*Db, error) {
 	if err != nil {
 		// only create collection if it's not found
 		if status.Code(err) == codes.NotFound {
+			fmt.Println("Collection not found, creating it.")
 			_, err = collClient.Create(ctx, &qdrant.CreateCollection{
 				CollectionName: CollectionName,
 				VectorsConfig: &qdrant.VectorsConfig{
@@ -76,9 +78,10 @@ func (db *Db) Add(vector []constants.HadithEmbedding) error {
 			Id:      qdrant.NewID(GenerateUUID(hadith)),
 			Vectors: qdrant.NewVectors(hadith.Embedding...), // confusing syntax ngl ;/. this expands a slice into a variadic or whatever args
 			Payload: map[string]*qdrant.Value{
-				"Book":   {Kind: &qdrant.Value_StringValue{StringValue: hadith.Book}},
-				"Page":   {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(hadith.Page)}},
-				"Hadith": {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(hadith.Hadith)}},
+				"Book":    {Kind: &qdrant.Value_StringValue{StringValue: hadith.Book}},
+				"Page":    {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(hadith.Page)}},
+				"Hadith":  {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(hadith.Hadith)}},
+				"Content": {Kind: &qdrant.Value_StringValue{StringValue: hadith.Content}},
 			},
 		}
 		ahadithAsPoints[i] = qdrantPoint
@@ -97,4 +100,60 @@ func (db *Db) Add(vector []constants.HadithEmbedding) error {
 	}
 
 	return nil
+}
+
+func (db *Db) Search(embeddings []float32) ([]constants.HadithEmbeddingResponse, error) {
+	searchRequest := qdrant.SearchPoints{
+		CollectionName: CollectionName,
+		Vector:         embeddings,
+		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
+		WithVectors:    &qdrant.WithVectorsSelector{SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true}},
+		Limit:          MaxResultsLimit,
+	}
+	resp, err := db.Client.Search(context.Background(), &searchRequest)
+	if err != nil {
+		return nil, err
+	}
+	embeddedAhadith := make([]constants.HadithEmbeddingResponse, len(resp.GetResult()))
+	for i, hadith := range resp.GetResult() {
+		embedding := hadith.Vectors.GetVector().Data
+		payload := hadith.Payload
+		if payload == nil {
+			return nil, fmt.Errorf("payload is nil")
+		}
+
+		// this code make me suicidal
+		var hadithNum int
+		if val, ok := payload["Hadith"]; ok {
+			if v := val.GetIntegerValue(); v != 0 {
+				hadithNum = int(v)
+			}
+		}
+
+		var book string
+		if val, ok := payload["Book"]; ok {
+			book = val.GetStringValue()
+		}
+
+		var page int
+		if val, ok := payload["Page"]; ok {
+			page = int(val.GetIntegerValue())
+		}
+
+		var content string
+		if val, ok := payload["Content"]; ok {
+			content = val.GetStringValue()
+		}
+		embeddedAhadith[i] = constants.HadithEmbeddingResponse{
+			HadithEmbedding: constants.HadithEmbedding{
+				Hadith:    hadithNum,
+				Embedding: embedding,
+				Book:      book,
+				Page:      page,
+				Content:   content,
+			},
+			Score: hadith.Score,
+		}
+	}
+	return embeddedAhadith, nil
 }

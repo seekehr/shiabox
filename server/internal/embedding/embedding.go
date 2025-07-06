@@ -32,7 +32,7 @@ type BatchRequest struct {
 }
 
 type response struct {
-	Embedding []float32 `json:"embeddings"`
+	Embedding [][]float32 `json:"embeddings"`
 }
 
 type batchResponse struct {
@@ -50,7 +50,6 @@ func EmbedText(text string, reuseClient *http.Client) ([]float32, error) {
 		return nil, err
 	}
 	resp, err := utils.MakePostRequest(url, bytes.NewReader(jsonData), reuseClient)
-
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +60,10 @@ func EmbedText(text string, reuseClient *http.Client) ([]float32, error) {
 	if embeddings.Embedding == nil {
 		return nil, fmt.Errorf("empty embedding")
 	}
-	return embeddings.Embedding, err
+	return embeddings.Embedding[0], err
 }
 
-// EmbedBatch returns an array of embeddings
+// EmbedBatch returns an array of ahadith, that have an array of embeddings
 func EmbedBatch(contents []string, reuseClient *http.Client) ([][]float32, error) {
 	reqBody := BatchRequest{
 		Model: model,
@@ -100,7 +99,7 @@ func EmbedAhadith(chunk []constants.HadithChunk, reuseClient *http.Client) ([]co
 	}
 
 	if len(embeddings) != len(chunk) {
-		return nil, fmt.Errorf("length mismatch (" + strconv.Itoa(len(embeddings)) + " != " + strconv.Itoa(len(chunk)) + ")")
+		return nil, fmt.Errorf("length mismatch during loop (" + strconv.Itoa(len(embeddings)) + " != " + strconv.Itoa(len(chunk)) + ")")
 	}
 
 	hadithAsEmbedded := make([]constants.HadithEmbedding, len(embeddings))
@@ -113,6 +112,7 @@ func EmbedAhadith(chunk []constants.HadithChunk, reuseClient *http.Client) ([]co
 			Embedding: embed,
 			Book:      chunk[i].Book,
 			Page:      chunk[i].Page,
+			Content:   chunk[i].Content,
 		}
 	}
 	return hadithAsEmbedded, nil
@@ -171,15 +171,9 @@ func EmbedBook(path string, bookName string) error {
 			for offset, embeddedHadith := range embedding {
 				// start+offset to calculate the actual value of the hadith in `chunks`
 				// no mutex needed since we're targeting different values of the slice
-				embeddedAhadith[start+offset] = constants.HadithEmbedding{
-					Hadith:    embeddedHadith.Hadith,
-					Embedding: embeddedHadith.Embedding,
-					Book:      embeddedHadith.Book,
-					Page:      embeddedHadith.Page,
-				}
+				embeddedAhadith[start+offset] = embeddedHadith
 			}
 		}(i, batch)
-		fmt.Println("Spun up goroutine for chunk: " + strconv.Itoa(i) + " to " + strconv.Itoa(end) + ".")
 	}
 
 	wg.Wait()

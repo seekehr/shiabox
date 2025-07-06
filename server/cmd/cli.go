@@ -4,13 +4,21 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"server/internal/embedding"
 	"server/internal/llm"
+	"server/internal/vector"
+	"strconv"
 	"strings"
 )
 
 // Bismillah
 func main() {
 	reader := bufio.NewReader(os.Stdin)
+	vectorDb, err := vector.Connect()
+	if err != nil {
+		panic(err)
+	}
+
 	for {
 		fmt.Print("Enter your prompt: ")
 		input, err := reader.ReadString('\n')
@@ -20,9 +28,25 @@ func main() {
 		}
 
 		prompt := strings.TrimSpace(input)
-		fmt.Println("Sending prompt...")
+		// we embed the prompt first so it can be searched
+		fmt.Println("Batching prompt...")
+		vectors, err := embedding.EmbedText(prompt, nil)
+		if err != nil {
+			fmt.Printf("Error embedding prompt: %v\n", err)
+			continue
+		}
 
-		resp, err := llm.SendPrompt(prompt)
+		fmt.Println("Prompt embedded of vec length " + strconv.Itoa(len(vectors)) + ". Now searching the prompt in the vector db...")
+		foundVectors, err := vectorDb.Search(vectors)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
+		fmt.Println("Building prompt...")
+		parsedPrompt := llm.BuildPrompt(prompt, vectors, foundVectors)
+		fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
+
+		resp, err := llm.SendPrompt(parsedPrompt)
 		if err != nil {
 			fmt.Printf("Error sending prompt: %v\n", err)
 			continue
