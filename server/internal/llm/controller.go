@@ -50,7 +50,7 @@ func BuildPrompt(inputText string, inputVectors []float32, similarHadith []const
 	return promptBuilder.String()
 }
 
-// vectorToString Converts []float32 to a compact comma-separated string
+// vectorToString converts []float32 to a comma-separated string (to feed to the AI)
 func vectorToString(vec []float32) string {
 	builder := strings.Builder{}
 	for i, val := range vec {
