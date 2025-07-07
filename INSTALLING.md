@@ -1,8 +1,8 @@
 # Installation Guide
 The project is split into 2 main parts; the `client/` and the `server/`. The client uses React (Typescript) + Tailwind (and utilises Vite as a build tool), while the `server/`, uses Golang. The server
 contains: 
-- (A) code that is relevant to the AI, which uses `Qdrant` (library; `GRPC` is used to communicate with it) and `HTTP` to communicate with Mistral and the embedding model.
-- (B) code to help `client/` interact with the server (including the AI), which uses `Echo`.
+- **(A)** code that is relevant to the AI, which uses `Qdrant` (library; `GRPC` is used to communicate with it) and `HTTP` to communicate with Mistral and the embedding model.
+- **(B)** code to help `client/` interact with the server (including the AI), which uses `Echo`.
 
 In other words, you **DO NOT** need to install `client/` if you don't want to use the website. You can just use `server/` and then `go run cmd/cli.go` inside server/.
 
