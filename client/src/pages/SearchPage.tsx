@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, User, Bot } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { sendRequestAI } from '../controller/ai_controller';
+import type { BackendBadResponse, BackendGoodResponse } from '../controller/controllers';
 
 const searchSuggestions = [
   "Why do Shias say \"Ya Ali\"?",
@@ -11,21 +13,38 @@ const searchSuggestions = [
   "Racism in ahadith."
 ]
 
+interface Message {
+  sender: 'user' | 'ai';
+  text: string;
+}
+
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const currentQuery = searchQuery.trim();
+    if (!currentQuery) return;
     
     setIsSearching(true);
-    // Simulate search delay
-    setTimeout(() => {
+    setMessages(prev => [...prev, { sender: 'user', text: currentQuery }]);
+    setSearchQuery('');
+
+    try {
+      const res = await sendRequestAI(currentQuery);
+      if ('data' in res) {
+        setMessages(prev => [...prev, { sender: 'ai', text: (res as BackendGoodResponse).data }]);
+      } else {
+        setMessages(prev => [...prev, { sender: 'ai', text: (res as BackendBadResponse).message }]);
+      }
+    } catch (error) {
+      console.error(error);
+      setMessages(prev => [...prev, { sender: 'ai', text: 'An unexpected error occurred. Please try again.' }]);
+    } finally {
       setIsSearching(false);
-      console.log('Searching for:', searchQuery);
-      // Here you would implement actual search functionality
-    }, 1000);
+    }
   };
 
   return (
@@ -68,26 +87,61 @@ const SearchPage = () => {
             </div>
           </form>
 
-          {/* Some basic search suggestions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-            {searchSuggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => setSearchQuery(suggestion)}
-                className="p-4 rounded-xl bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 hover:border-emerald-400 hover:bg-gray-800 transition-all duration-200 text-left group shadow-lg hover:shadow-xl"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-900/50 to-teal-900/50 group-hover:from-emerald-800/60 group-hover:to-teal-800/60 transition-colors duration-200">
-                    <Search className="w-4 h-4 text-emerald-400" />
+          {messages.length > 0 ? (
+            <div className="space-y-6 max-w-4xl w-full">
+              {messages.map((msg, index) => (
+                <div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
+                  {msg.sender === 'ai' && (
+                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                      <Bot className="w-5 h-5 text-emerald-400" />
+                    </div>
+                  )}
+                  <div className={`p-4 rounded-2xl max-w-2xl ${msg.sender === 'user' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
                   </div>
-                  <span className="text-gray-200 font-medium group-hover:text-white">{suggestion}</span>
+                  {msg.sender === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-gray-300" />
+                    </div>
+                  )}
                 </div>
-              </button>
-            ))}
-          </div>
+              ))}
+              {isSearching && (
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div className="p-4 rounded-2xl max-w-2xl bg-gray-800 text-gray-200">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse delay-75"></div>
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse delay-150"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+              {searchSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSearchQuery(suggestion)}
+                  className="p-4 rounded-xl bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 hover:border-emerald-400 hover:bg-gray-800 transition-all duration-200 text-left group shadow-lg hover:shadow-xl"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-900/50 to-teal-900/50 group-hover:from-emerald-800/60 group-hover:to-teal-800/60 transition-colors duration-200">
+                      <Search className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <span className="text-gray-200 font-medium group-hover:text-white">{suggestion}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Footer/Note for inauthenticity */}
-          <div className="text-center text-gray-400 text-sm">
+          <div className="text-center text-gray-400 text-sm mt-12">
             <p>NOTE: TAKE AS A GRAIN OF SALT. MAY HALLUCINATE AND INAUTHENTIC AHADITH ARE ALSO INCLUDED.</p>
           </div>
         </div>

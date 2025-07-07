@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"server/internal/handlers"
 	"time"
@@ -10,7 +11,7 @@ type processRequestBody struct {
 	Prompt string `json:"prompt"`
 }
 
-func (h *Handler) GetRequestHandler(c echo.Context) error {
+func (handler *Handler) PostRequestHandler(c echo.Context) error {
 	var body processRequestBody
 	if err := c.Bind(&body); err != nil {
 		return c.JSON(400, handlers.ReturnType{
@@ -27,7 +28,8 @@ func (h *Handler) GetRequestHandler(c echo.Context) error {
 		})
 	}
 	timer := time.Now()
-	response, err := h.HandleRequest(prompt)
+	fmt.Println(prompt)
+	response, err := handler.HandleRequest(prompt)
 	if err != nil {
 		return c.JSON(500, handlers.ReturnType{
 			Message: "Server error. Error: " + err.Error(),

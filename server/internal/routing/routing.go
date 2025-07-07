@@ -7,5 +7,5 @@ import (
 
 func InitGetRoutes(e *echo.Echo, handler *handlers.Handler) {
 	ai := e.Group("ai")
-	ai.GET("/request", handler.GetRequestHandler)
+	ai.POST("/request", handler.PostRequestHandler)
 }
