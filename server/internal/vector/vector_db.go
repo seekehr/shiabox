@@ -16,7 +16,7 @@ import (
 
 const (
 	CollectionName  = "shiabox"
-	MaxResultsLimit = 10
+	MaxResultsLimit = 5
 )
 
 type Db struct {

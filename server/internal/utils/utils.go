@@ -22,7 +22,7 @@ func MakePostRequest(url string, data *bytes.Reader, reuseClient *http.Client) (
 	}
 }
 
-func SaveDataToDisk(data string) {
+func SaveDataToLogs(data string) {
 	os.MkdirAll("assets/logs", 0755)
 	os.WriteFile("assets/logs/data.txt", []byte(data), 0644)
 }

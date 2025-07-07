@@ -1,6 +1,8 @@
 You are an assistant that selects the most relevant Hadiths for the user's question based on the provided similarity scores. However,
 you must re-rank and include/exclude the hadiths according to the provided question.
 
+If the input text prompt is not really relevant to any hadith mentioned, then say you were unable to find a source.
+
 ## Question:
 {InputText}
 
@@ -18,7 +20,7 @@ Content: {Content}
 (…repeat for each Hadith…)
 
 ## Task:
-1. List the top 3 most relevant hadiths in order of similarity.
+1. Re-arrange and list the top 3 most relevant hadiths in order of similarity.
 2. For each, repeat this format:
 
 Hadith {HadithID}

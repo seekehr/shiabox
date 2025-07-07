@@ -1,22 +1,23 @@
 package main
 
 import (
-	"fmt"
-	llm2 "server/internal/llm"
+	"github.com/labstack/echo/v4"
+	handlers "server/internal/handlers/ai"
+	"server/internal/routing"
 )
 
-// Bismillah
 func main() {
-	fmt.Println("Sending prompt...")
-	prompt := "hey thereeqweqwewq"
-	resp, err := llm2.SendPrompt(prompt)
+	e := echo.New()
+	e.HideBanner = true // why is it even false by default
+	handler, err := handlers.NewHandler()
 	if err != nil {
 		panic(err)
 	}
-	response, err := llm2.ParseResponse(resp.Body)
-	if err != nil {
-		panic(err)
-	}
+	InitRoutes(e, handler)
 
-	fmt.Println("Model:", response)
+	e.Logger.Fatal(e.Start(":1323"))
+}
+
+func InitRoutes(e *echo.Echo, handler *handlers.Handler) {
+	routing.InitGetRoutes(e, handler)
 }
