@@ -18,5 +18,7 @@ These results are then fed into `Mistral`, with a prompt that is defined in `ass
 
 **Note:** Currently, EVERY hadith (sahih, da'if, hasan, or whatever else) is treated with the same level of accuracy. Implementing a `grading` for every ahadith, especially in a scalable/automated manner, will be very difficult and so is a "NOT COMING SOON" feature for now, 
 
+# Installation Guide
+Read [INSTALLATION](INSTALLING.MD).
 # Preview
 ![alt text](https://github.com/seekehr/shiabox/blob/main/server/assets/images/readme_preview_1.png "Example 1")
