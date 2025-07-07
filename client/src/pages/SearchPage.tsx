@@ -3,6 +3,7 @@ import { Search, User, Bot } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { sendRequestAI } from '../controller/ai_controller';
 import type { BackendBadResponse, BackendGoodResponse } from '../controller/controllers';
+import ParseMD from '../utils/ParseAIOutput';
 
 const searchSuggestions = [
   "Why do Shias say \"Ya Ali\"?",
@@ -52,7 +53,7 @@ const SearchPage = () => {
       <Navbar />
       <main className="flex-grow flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-4xl mx-auto">
-          {/* Header */}
+          {/* Title text */}
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Shiabox AI Search
@@ -62,7 +63,7 @@ const SearchPage = () => {
             </p>
           </div>
 
-          {/* Form to search */}
+          {/* input search form */}
           <form onSubmit={handleSearch} className="relative mb-8">
             <div className="relative">
               <input
@@ -87,6 +88,7 @@ const SearchPage = () => {
             </div>
           </form>
 
+          {/* messages bw AI and user; prob gonna move this to /chat?id route */}
           {messages.length > 0 ? (
             <div className="space-y-6 max-w-4xl w-full">
               {messages.map((msg, index) => (
@@ -97,7 +99,11 @@ const SearchPage = () => {
                     </div>
                   )}
                   <div className={`p-4 rounded-2xl max-w-2xl ${msg.sender === 'user' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                    {msg.sender === 'ai' ? (
+                      <ParseMD content={msg.text} />
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                    )}
                   </div>
                   {msg.sender === 'user' && (
                     <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
@@ -140,7 +146,7 @@ const SearchPage = () => {
             </div>
           )}
 
-          {/* Footer/Note for inauthenticity */}
+          {/* disclaimer */}
           <div className="text-center text-gray-400 text-sm mt-12">
             <p>NOTE: TAKE AS A GRAIN OF SALT. MAY HALLUCINATE AND INAUTHENTIC AHADITH ARE ALSO INCLUDED.</p>
           </div>

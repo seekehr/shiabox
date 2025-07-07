@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"server/internal/handlers/ai"
+	"sync"
 )
 
 // Bismillah
@@ -21,10 +22,17 @@ func main() {
 			fmt.Printf("Error reading input: %v\n", err)
 			return
 		}
-		response, err := handler.HandleRequest(input)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Model: " + response)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			response, err := handler.HandleRequest(input)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("Model: " + response)
+		}()
+		wg.Wait()
 	}
 }

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"server/internal/handlers"
 	"time"
@@ -28,7 +27,6 @@ func (handler *Handler) PostRequestHandler(c echo.Context) error {
 		})
 	}
 	timer := time.Now()
-	fmt.Println(prompt)
 	response, err := handler.HandleRequest(prompt)
 	if err != nil {
 		return c.JSON(500, handlers.ReturnType{

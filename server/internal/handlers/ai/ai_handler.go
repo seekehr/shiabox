@@ -35,7 +35,7 @@ func NewHandler() (*Handler, error) {
 func (handler *Handler) HandleRequest(prompt string) (string, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
-	fmt.Println("Embedding prompt...")
+	fmt.Println("\n\n====\nEmbedding prompt...")
 	vectors, err := embedding.EmbedText(prompt, nil)
 	if err != nil {
 		fmt.Printf("Error embedding prompt: %v\n", err)
