@@ -85,7 +85,7 @@ func (handler *Handler) commonRequestHandler(prompt string) (*http.Response, err
 	fmt.Println("Prompt built and db searched in " + time.Since(start).String() + ".")
 	fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
-	resp, err := llm.SendPrompt(parsedPrompt, handler.llmApiKey, true)
+	resp, err := llm.SendPrompt(parsedPrompt, llm.ChatModel, handler.llmApiKey, true)
 	if resp != nil && resp.StatusCode == 429 {
 		return nil, fmt.Errorf("ratelimit")
 	}

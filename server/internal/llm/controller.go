@@ -13,13 +13,15 @@ import (
 )
 
 const (
-	llmUrl     = "https://api.groq.com/openai/v1/chat/completions"
-	promptFile = "assets/prompt.txt"
-	model      = "meta-llama/llama-4-scout-17b-16e-instruct"
+	llmUrl            = "https://api.groq.com/openai/v1/chat/completions"
+	promptFile        = "assets/prompt.txt"
+	ParserModel Model = "llama-3.3-70b-versatile"
+	ChatModel   Model = "meta-llama/llama-4-scout-17b-16e-instruct"
 )
 
 type stream bool
 type Role string
+type Model string
 
 const (
 	StreamedResponse stream = true
@@ -37,11 +39,11 @@ type AIMessage struct {
 // promptRequest Request format for the API
 type promptRequest struct {
 	Messages []AIMessage `json:"messages"`
-	Model    string      `json:"model"`
+	Model    Model       `json:"model"`
 	Stream   stream      `json:"stream"`
 }
 
-func SendPrompt(prompt string, apiKey string, streaming stream) (*http.Response, error) {
+func SendPrompt(prompt string, model Model, apiKey string, streaming stream) (*http.Response, error) {
 	messages := []AIMessage{
 		{
 			Role:    UserRole,
