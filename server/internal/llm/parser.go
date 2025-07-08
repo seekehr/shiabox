@@ -29,12 +29,12 @@ type AIResponse struct {
 	Choices []AIChoice `json:"choices"`
 }
 
-func ParseResponse(body io.ReadCloser) (AIResponse, error) {
+func ParseResponse(body io.ReadCloser) (*AIResponse, error) {
 	var response AIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
-		return AIResponse{}, err
+		return nil, err
 	}
-	return response, nil
+	return &response, nil
 }
 
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
@@ -79,7 +79,11 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan *AIResponse {
 						fmt.Println("unmarshal error:", err)
 						continue
 					}
-					dataChan <- &response
+
+					// create a copy of the response struct and send the pointer to the copy. (for performance). explanation below
+					// explanation: channel send only moves the pointer which is cheaper than moving the whole ass struct
+					respCopy := response
+					dataChan <- &respCopy
 				}
 				// ignore other SSE fields like "event:" or "retry:"; not mentioned in the api doc
 				continue
