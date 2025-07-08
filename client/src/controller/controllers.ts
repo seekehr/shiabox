@@ -11,9 +11,24 @@ export type GoodResponse = {
     status_code: number;
 };
 
+export type AIMessage = {
+    role: string
+    content: string
+}
+
+export type AIChoice = {
+    index: number
+    finish_reason: string
+    delta: AIMessage
+}
+
+export type AIResponse = {
+    choices: AIChoice[];
+};
+
 export type StreamResponse = {
     message: string;
-    data: string | undefined;
+    data: AIResponse;
     done: boolean;
 };
 

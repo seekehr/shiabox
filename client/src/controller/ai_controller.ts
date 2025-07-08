@@ -2,21 +2,33 @@ import { BACKEND_URL, handleStreamResponse, type StreamResponse } from "./contro
 
 const sendPromptAIUrl = `${BACKEND_URL}/ai/request`;
 
-const sendAIPrompt = async (
+const sendAIPrompt = (
   prompt: string,
   onReceive: (streamResponse: StreamResponse) => void,
   onError: (error: string) => void
-): Promise<AbortController> => {
-  const response = await fetch(sendPromptAIUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ prompt }),
-  });
-
+): AbortController => {
   const controller = new AbortController();
-  handleStreamResponse(response, onReceive, onError);
+
+  const run = async () => {
+    try {
+      const response = await fetch(sendPromptAIUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+        signal: controller.signal,
+      });
+      await handleStreamResponse(response, onReceive, onError);
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        onError(error.message);
+      }
+    }
+  };
+
+  run();
+
   return controller;
 };
 

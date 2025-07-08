@@ -42,7 +42,7 @@ const SearchPage = () => {
 		setMessages(prev => [...prev, { sender: 'user', text: currentQuery }, { sender: 'ai', text: '' }]);
 		setSearchQuery('');
 
-		sendAIPrompt(currentQuery,
+		const controller = sendAIPrompt(currentQuery,
 			(streamData) => { // onReceive
 				if (streamData.done) {
 					setIsSearching(false);
@@ -53,9 +53,10 @@ const SearchPage = () => {
 					const lastMessage = prev[prev.length - 1];
 					if (lastMessage.sender === 'ai') {
 						const newMessages = [...prev];
+						const content = streamData.data?.choices?.[0]?.delta?.content || '';
 						newMessages[newMessages.length - 1] = {
 							...lastMessage,
-							text: lastMessage.text + (streamData.data || ''),
+							text: lastMessage.text + content,
 						};
 						return newMessages;
 					}
@@ -79,7 +80,8 @@ const SearchPage = () => {
 				setIsSearching(false);
 				setAbortController(null);
 			}
-		).then(setAbortController);
+		);
+		setAbortController(controller);
 	};
 
 	return (
