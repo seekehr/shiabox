@@ -24,6 +24,11 @@ the URL provided in the terminal/command prompt inside your browser.
 **First**, make sure you complete all the requirements mentioned. After that, **make sure to clone the github repo using `git clone` first!** 
 Either that, or you can Download as ZIP on github, then extract the source code in a folder.
 
+Create a `.env` file in server/ folder, and it should contain a string with your [Groq API key](https://groq.com/) (which is needed). Like: 
+```
+GROQ_API_KEY="api key here"
+```
+
 Then, first navigate to `server/` (using the `cd` command) and run `go run cmd/setup.go`. When it asks you for input, first enter `0`, and after it is finished, use `go run cmd/setup.go`
 again, and this time enter `1` (not the most intuitive design I know lol).
 
