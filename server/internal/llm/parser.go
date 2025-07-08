@@ -29,37 +29,17 @@ type AIResponse struct {
 	Choices []AIChoice `json:"choices"`
 }
 
-// Unused for now.
-/*func ParseStreamedResponse(body io.ReadCloser) chan string {
-	dataChan := make(chan string)
-	go func() {
-		defer func() {
-			// this is deffered because our func returns IMMEDIATELY, which would close the body b4 we finished reading,
-			// whereas the goroutine keeps running even if our function returns until its task is complete
-			body.Close() // i got a bit confused, so im writing dis so i remember: interfaces are technically copied-by-value
-			// but body.Close() would still work because basically the {pointerToTypeInformation, pointerToData) of
-			// an interface is copied not the entire value (unlike structs)
-			close(dataChan)
-		}()
-		var chunk AIResponse
-
-		scanner := bufio.NewScanner(body)
-		scanner.Buffer(make([]byte, 0, 64*1024), bufferSize)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if err := json.Unmarshal([]byte(line), &chunk); err == nil {
-				dataChan <- chunk.Response
-			} else {
-				fmt.Println("Error reading response from LLM: ", err.Error())
-			}
-		}
-	}()
-	return dataChan
-}*/
+func ParseResponse(body io.ReadCloser) (AIResponse, error) {
+	var response AIResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		return AIResponse{}, err
+	}
+	return response, nil
+}
 
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
-func ParseStreamedSSE(body io.ReadCloser) <-chan AIResponse {
-	dataChan := make(chan AIResponse)
+func ParseStreamedSSE(body io.ReadCloser) <-chan *AIResponse {
+	dataChan := make(chan *AIResponse)
 
 	go func() {
 		defer func() {
@@ -99,7 +79,7 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan AIResponse {
 						fmt.Println("unmarshal error:", err)
 						continue
 					}
-					dataChan <- response
+					dataChan <- &response
 				}
 				// ignore other SSE fields like "event:" or "retry:"; not mentioned in the api doc
 				continue
@@ -112,3 +92,31 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan AIResponse {
 
 	return dataChan
 }
+
+// Unused for now. Was used for Mistral API which sent constant JSON responses instead of text/event-stream
+/*func ParseStreamedResponse(body io.ReadCloser) chan string {
+	dataChan := make(chan string)
+	go func() {
+		defer func() {
+			// this is deffered because our func returns IMMEDIATELY, which would close the body b4 we finished reading,
+			// whereas the goroutine keeps running even if our function returns until its task is complete
+			body.Close() // i got a bit confused, so im writing dis so i remember: interfaces are technically copied-by-value
+			// but body.Close() would still work because basically the {pointerToTypeInformation, pointerToData) of
+			// an interface is copied not the entire value (unlike structs)
+			close(dataChan)
+		}()
+		var chunk AIResponse
+
+		scanner := bufio.NewScanner(body)
+		scanner.Buffer(make([]byte, 0, 64*1024), bufferSize)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if err := json.Unmarshal([]byte(line), &chunk); err == nil {
+				dataChan <- chunk.Response
+			} else {
+				fmt.Println("Error reading response from LLM: ", err.Error())
+			}
+		}
+	}()
+	return dataChan
+}*/

@@ -43,7 +43,7 @@ func NewHandler() (*Handler, error) {
 	}, nil
 }
 
-func (handler *Handler) HandleRequest(prompt string) (<-chan llm.AIResponse, error) {
+func (handler *Handler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")
@@ -69,7 +69,7 @@ func (handler *Handler) HandleRequest(prompt string) (<-chan llm.AIResponse, err
 	if resp != nil && resp.StatusCode == 429 {
 		return nil, fmt.Errorf("ratelimit")
 	}
-	
+
 	if err != nil {
 		fmt.Printf("Error sending prompt: %v\n", err)
 		return nil, err

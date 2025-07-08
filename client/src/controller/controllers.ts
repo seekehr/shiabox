@@ -58,10 +58,6 @@ export const handleStreamResponse = async (
 ): Promise<void> => {
     try {
         if (!response.ok) {
-            if (response.status === 429) {
-                onError("You are being rate-limited. Please try again in a moment.");
-                return;
-            }
             const error = await response.json().catch(() => ({
                 message: `HTTP error! status: ${response.status}`,
             }));
