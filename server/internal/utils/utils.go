@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"regexp"
 )
 
 type Header struct {
@@ -46,6 +48,17 @@ func MakeHeadersRequest(url string, body io.Reader, client *http.Client, headers
 	}
 
 	return client.Do(req)
+}
+
+// SavePDFAsTxt - Used primarily by setup.go to save our pdf books in zero-formatting .txt format. Require's poppler's pdftotext
+func SavePDFAsTxt(pdfPath string, txtPath string) error {
+	return exec.Command("pdftotext", pdfPath, txtPath).Run()
+}
+
+// RemoveArabic - Use regex to remove arabic unicode representations from text
+func RemoveArabic(text string) string {
+	re := regexp.MustCompile(`[\x{0600}-\x{06FF}\x{0750}-\x{077F}\x{08A0}-\x{08FF}\x{FB50}-\x{FDFF}\x{FE70}-\x{FEFF}]+`)
+	return re.ReplaceAllString(text, "")
 }
 
 func SaveDataToLogs(data string) {

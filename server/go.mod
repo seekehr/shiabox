@@ -6,13 +6,14 @@ toolchain go1.24.4
 
 require (
 	github.com/golang/protobuf v1.5.4
+	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/qdrant/go-client v1.14.1
 	google.golang.org/grpc v1.73.0
+	rsc.io/pdf v0.1.1
 )
 
 require (
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

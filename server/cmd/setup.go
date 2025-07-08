@@ -9,18 +9,22 @@ import (
 	"os"
 	"server/internal/constants"
 	"server/internal/embedding"
+	handlers "server/internal/handlers/ai"
+	"server/internal/utils"
 	"server/internal/vector"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	FlagParseBooks   = 0
+	FlagInitBooks    = 0
 	FlagEmbedBooks   = 1
 	FlagInitVectors  = 2
 	FlagInitBoth     = 3
 	FlagInitAll      = 4
+	MaxParsers       = 30 // 30 rpm is the ratelimit for groq
 	MaxVectors       = 50
 	MaxVectorWorkers = 10
 )
@@ -31,6 +35,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	handler, err := handlers.NewHandler()
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("Would you like to parse books or initialise the vector db? Run each in order first if you're new. (0/1/2/3)")
 	if buf.Scan() {
 		flagged, err := strconv.Atoi(buf.Text())
@@ -38,14 +47,16 @@ func main() {
 			panic(err)
 		}
 
-		fmt.Println("Generating embeddings...")
 		timeStart := time.Now()
-
-		if flagged == FlagEmbedBooks {
+		if flagged == FlagInitBooks {
+			initBooks()
+		} else if flagged == FlagEmbedBooks {
+			fmt.Println("Generating embeddings...")
 			embedBooks()
 		} else if flagged == FlagInitVectors {
 			initVectors(db)
 		} else if flagged == FlagInitBoth {
+			fmt.Println("Generating embeddings...")
 			embedBooks()
 			initVectors(db)
 		} else {
@@ -56,9 +67,71 @@ func main() {
 
 }
 
-func parseBooks() {
+func initBooks(handler *handlers.Handler) {
+	var parseWg sync.WaitGroup // because chunking relies on the .txt books so parsing them must be done first
 
+	fmt.Println("MAKE SURE YOU HAVE PDFTOTEXT BY POPPLER'S UTILS INSTALLED.")
+	fmt.Println("Converting pdf books to txt format...")
+	timer := time.Now()
+
+	// pdf books to convert to txt format
+	pdfBooks, err := os.ReadDir(constants.PdfBooksDir)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, entry := range pdfBooks {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".pdf") {
+			continue
+		}
+		parseWg.Add(1)
+		go func(fileName string) {
+			defer parseWg.Done()
+			parseError := utils.SavePDFAsTxt(constants.PdfBooksDir+name, constants.UnparsedBooksDir+strings.Replace(fileName, ".pdf", ".txt", 1))
+			if parseError != nil {
+				panic(parseError)
+			}
+		}(name)
+	}
+
+	parseWg.Wait()
+	fmt.Println("Converting books to txt done in: ", time.Since(timer).String())
 }
+
+func chunkBooks(handler *handlers.Handler) {
+	// txt format books to chunk
+	timer := time.Now()
+	txtBooks, err := os.ReadDir(constants.UnparsedBooksDir)
+	if err != nil {
+		panic(err)
+	}
+
+	var (
+		wg sync.WaitGroup
+	)
+	// 60 / 30 = 2. so 1 goroutine every 2 seconds to prevent Groq API ratelimiting
+	rateLimiter := time.NewTicker(time.Second / MaxParsers)
+	defer rateLimiter.Stop()
+
+	for _, entry := range txtBooks {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".txt") {
+			continue
+		}
+
+		// time.Ticker uses a channel so we can wait on the channel to send a new 'tick' and then continue
+		<-rateLimiter.C
+		wg.Add(1)
+		go func(fileName string) {
+			handler.HandleFullRequest()
+			defer wg.Done()
+		}(entry.Name())
+	}
+
+	wg.Wait()
+	fmt.Println("Chunking books done in: ", time.Since(timer).String())
+}
+
 func embedBooks() {
 	var wg sync.WaitGroup
 	// read books in .json format awaiting to be embedded
