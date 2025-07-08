@@ -14,3 +14,10 @@ Tracking from v1.3 and onwards if God Wills.
 - [x] Changed the `chan string` to `<-chan AIResponse` in parser.go to allow more information to be processed (and also made the channel <- read-only).
 - [x] 30 responses per minute now only, but better than the 60+ seconds that requests used to take.
 - [x] **Reason I switched from Mistral:** Only allowed 1 request per 60-120 seconds, as I could only run 1 instance on my PC which is designed to handle one thread only.
+
+### v1.5:
+- [x] Implement our changes on the backend server.
+- [x] Make sure `controller` handles the new data format (`AIResponse` structure instead of a `string`) properly on the client side.
+- [x] Make sure the actual page handles the new `controller` output properly. In the future, we'll also handle finish reasons such as `length`.
+- [x] Update README.md to be more accurate.
+- [x] Update INSTALLING.md to include setting up the `.env`.
