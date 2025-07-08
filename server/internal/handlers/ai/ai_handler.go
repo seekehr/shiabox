@@ -32,41 +32,33 @@ func NewHandler() (*Handler, error) {
 	}, nil
 }
 
-func (handler *Handler) HandleRequest(prompt string) (string, error) {
+func (handler *Handler) HandleRequest(prompt string) (chan string, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")
 	vectors, err := embedding.EmbedText(prompt, nil)
 	if err != nil {
 		fmt.Printf("Error embedding prompt: %v\n", err)
-		return "", err
+		return nil, err
 	}
 
 	fmt.Println("Prompt embedded of vec length " + strconv.Itoa(len(vectors)) + ". Now searching the prompt in the vector db...")
 	foundVectors, err := handler.vectorDb.Search(vectors)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
 	fmt.Println("Building prompt...")
-	parsedPrompt := llm.BuildPrompt(handler.llmPrompt, prompt, vectors, foundVectors)
+	parsedPrompt := llm.BuildPrompt(handler.llmPrompt, prompt, foundVectors)
 	fmt.Println("Prompt built and db searched in " + time.Since(start).String() + ".")
 	fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
-	timer := time.Now()
-	resp, err := llm.SendPrompt(parsedPrompt)
+	resp, err := llm.SendPrompt(parsedPrompt, true)
 	if err != nil {
 		fmt.Printf("Error sending prompt: %v\n", err)
-		return "", err
+		return nil, err
 	}
 
-	response, err := llm.ParseResponse(resp.Body)
-	if err != nil {
-		fmt.Printf("Error parsing response: %v\n", err)
-		return "", err
-	}
-
-	fmt.Println("Prompt sent in " + time.Since(timer).String() + ".")
-	return response, nil
+	return llm.ParseStreamedResponse(resp.Body), nil
 }

@@ -16,24 +16,37 @@ const (
 	promptFile = "assets/prompt.txt"
 )
 
+type stream bool
+
+const (
+	StreamedResponse stream = true
+	FullResponse     stream = false
+)
+
 // ollamaRequest Request format for the API
 type ollamaRequest struct {
 	Model  string `json:"model"`
 	Prompt string `json:"prompt"`
+	Stream stream `json:"stream"`
 }
 
-func SendPrompt(prompt string) (*http.Response, error) {
+func SendPrompt(prompt string, streaming stream) (*http.Response, error) {
 	request := ollamaRequest{
 		Model:  "mistral",
 		Prompt: prompt,
+		Stream: streaming,
 	}
 	parsedRequest, _ := json.Marshal(request)
 
 	resp, err := http.Post(llmUrl, "application/json", bytes.NewBuffer(parsedRequest))
-	return resp, err
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
-func BuildPrompt(llmPrompt string, inputText string, inputVectors []float32, similarHadith []constants.HadithEmbeddingResponse) string {
+func BuildPrompt(llmPrompt string, inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString(llmPrompt)
 	promptBuilder.WriteString("InputText: " + inputText + "\n")

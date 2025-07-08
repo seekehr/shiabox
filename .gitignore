@@ -4,3 +4,4 @@ server/storage/
 server/snapshots/
 server/.qdrant-initialized
 server/assets/logs/
+server/.env
