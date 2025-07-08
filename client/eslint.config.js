@@ -20,7 +20,7 @@ export default tseslint.config([
       globals: globals.browser,
     },
     rules: {
-      indent: 'off',
+      'indent': 'off',
       '@typescript-eslint/indent': ['error', 4],
     },
   },

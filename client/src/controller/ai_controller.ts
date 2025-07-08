@@ -1,16 +1,23 @@
-import { BACKEND_URL, handleResponse, type BackendBadResponse, type BackendGoodResponse } from "./controllers";
+import { BACKEND_URL, handleStreamResponse, type StreamResponse } from "./controllers";
 
-const sendRequestAIUrl = `${BACKEND_URL}/ai/request`;
+const sendPromptAIUrl = `${BACKEND_URL}/ai/request`;
 
-const sendRequestAI = async (request: string): Promise<BackendGoodResponse|BackendBadResponse> => {
-  const response = await fetch(sendRequestAIUrl, {
+const sendAIPrompt = async (
+  prompt: string,
+  onReceive: (streamResponse: StreamResponse) => void,
+  onError: (error: string) => void
+): Promise<AbortController> => {
+  const response = await fetch(sendPromptAIUrl, {
     method: "POST",
     headers: {
-        "Content-Type": "application/json",
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ "prompt": request }),
+    body: JSON.stringify({ prompt }),
   });
-  return await handleResponse(response);
+
+  const controller = new AbortController();
+  handleStreamResponse(response, onReceive, onError);
+  return controller;
 };
 
-export { sendRequestAI };
+export { sendAIPrompt };
