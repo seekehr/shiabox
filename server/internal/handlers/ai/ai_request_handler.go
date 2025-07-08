@@ -44,8 +44,13 @@ func (handler *Handler) PostRequestHandler(c echo.Context) error {
 
 	dataStream, err := handler.HandleRequest(prompt)
 	if err != nil {
+		message := "Error handling request. Error: " + err.Error()
+		if err.Error() == "ratelimit" {
+			message = "30 msgs/s rate-limit reached of server. Please donate to help increase our rate-limit."
+		}
+
 		jsonResponse, _ := json.Marshal(handlers.StreamReturnType{
-			Message: "Server error. Error: " + err.Error(),
+			Message: message,
 			Data:    nil,
 			Done:    true,
 		})

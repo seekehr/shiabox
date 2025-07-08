@@ -66,6 +66,10 @@ func (handler *Handler) HandleRequest(prompt string) (<-chan llm.AIResponse, err
 	fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
 	resp, err := llm.SendPrompt(parsedPrompt, handler.llmApiKey, true)
+	if resp != nil && resp.StatusCode == 429 {
+		return nil, fmt.Errorf("ratelimit")
+	}
+	
 	if err != nil {
 		fmt.Printf("Error sending prompt: %v\n", err)
 		return nil, err

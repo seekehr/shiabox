@@ -17,6 +17,7 @@ const searchSuggestions = [
 interface Message {
 	sender: 'user' | 'ai';
 	text: string;
+	isError?: boolean;
 }
 
 const SearchPage = () => {
@@ -71,11 +72,12 @@ const SearchPage = () => {
 					if (lastMessage.sender === 'ai') {
 						newMessages[newMessages.length - 1] = {
 							...lastMessage,
-							text: `An error occurred: ${error}`,
+							text: error,
+							isError: true,
 						};
 						return newMessages;
 					}
-					return [...newMessages, { sender: 'ai', text: `An error occurred: ${error}` }];
+					return [...newMessages, { sender: 'ai', text: error, isError: true }];
 				});
 				setIsSearching(false);
 				setAbortController(null);
@@ -137,7 +139,11 @@ const SearchPage = () => {
 									)}
 									<div className={`p-4 rounded-2xl max-w-2xl ${msg.sender === 'user' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
 										{msg.sender === 'ai' ? (
-											<ParseMD content={msg.text} />
+											msg.isError ? (
+												<p className="whitespace-pre-wrap text-red-500">{msg.text}</p>
+											) : (
+												<ParseMD content={msg.text} />
+											)
 										) : (
 											<p className="whitespace-pre-wrap">{msg.text}</p>
 										)}

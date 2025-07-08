@@ -17,8 +17,9 @@ import (
 
 const (
 	FlagParseBooks   = 0
-	FlagInitVectors  = 1
-	FlagInitBoth     = 2
+	FlagEmbedBooks   = 1
+	FlagInitVectors  = 2
+	FlagInitBoth     = 3
 	MaxVectors       = 50
 	MaxVectorWorkers = 10
 )
@@ -29,7 +30,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Would you like to parse books or initialise the vector db? Run each in order first if you're new. (0/1)")
+	fmt.Println("Would you like to parse books or initialise the vector db? Run each in order first if you're new. (0/1/2/3)")
 	if buf.Scan() {
 		flagged, err := strconv.Atoi(buf.Text())
 		if err != nil {
@@ -39,7 +40,7 @@ func main() {
 		fmt.Println("Generating embeddings...")
 		timeStart := time.Now()
 
-		if flagged == FlagParseBooks {
+		if flagged == FlagEmbedBooks {
 			parseBooks()
 		} else if flagged == FlagInitVectors {
 			initVectors(db)
@@ -123,6 +124,7 @@ func initVectors(vectorDb *vector.Db) {
 			if err != nil {
 				panic(err)
 			}
+			// read all the vectors in batches
 			for i := 0; i < len(embedData); i += MaxVectors {
 				end := i + MaxVectors
 				if end > len(embedData) {
