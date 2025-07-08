@@ -19,18 +19,32 @@ const (
 	FilterFinishReason FinishReasonType = "content_filter"
 )
 
+// CompleteAIChoice - Returned in choices{} JSON object by Groq, when stream is false
+type CompleteAIChoice struct {
+	Index        int              `json:"index"`
+	FinishReason FinishReasonType `json:"finish_reason"`
+	Message      AIMessage        `json:"message"`
+}
+
+// AIChoice - Returned in choices{} JSON object by Groq, when stream is true
 type AIChoice struct {
 	Index        int              `json:"index"`
 	FinishReason FinishReasonType `json:"finish_reason"`
 	Delta        AIMessage        `json:"delta"`
 }
 
+// CompleteAIResponse - API Response by Groq, when stream is false
+type CompleteAIResponse struct {
+	Choices []AIChoice `json:"choices"`
+}
+
+// AIResponse - API Response by Groq, when stream is true
 type AIResponse struct {
 	Choices []AIChoice `json:"choices"`
 }
 
-func ParseResponse(body io.ReadCloser) (*AIResponse, error) {
-	var response AIResponse
+func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
+	var response CompleteAIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
 		return nil, err
 	}
@@ -61,7 +75,7 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan *AIResponse {
 				return
 			}
 
-			// delimeter reaached
+			// delimeter reached
 			if line == "\n" || line == "\r\n" {
 				event := buf.String()
 				buf.Reset()

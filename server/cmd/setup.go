@@ -20,6 +20,7 @@ const (
 	FlagEmbedBooks   = 1
 	FlagInitVectors  = 2
 	FlagInitBoth     = 3
+	FlagInitAll      = 4
 	MaxVectors       = 50
 	MaxVectorWorkers = 10
 )
@@ -41,11 +42,11 @@ func main() {
 		timeStart := time.Now()
 
 		if flagged == FlagEmbedBooks {
-			parseBooks()
+			embedBooks()
 		} else if flagged == FlagInitVectors {
 			initVectors(db)
 		} else if flagged == FlagInitBoth {
-			parseBooks()
+			embedBooks()
 			initVectors(db)
 		} else {
 			panic("invalid flag: " + strconv.Itoa(flagged))
@@ -56,7 +57,11 @@ func main() {
 }
 
 func parseBooks() {
+
+}
+func embedBooks() {
 	var wg sync.WaitGroup
+	// read books in .json format awaiting to be embedded
 	parsedBooks, _ := os.ReadDir(constants.ParsedBooksDir)
 
 	for _, file := range parsedBooks {

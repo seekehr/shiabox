@@ -43,7 +43,27 @@ func NewHandler() (*Handler, error) {
 	}, nil
 }
 
+// HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
 func (handler *Handler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
+	resp, err := handler.commonRequestHandler(prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	return llm.ParseStreamedSSE(resp.Body), nil
+}
+
+// HandleFullRequest - Handle the entire prompt -> AI process, and return the completed response
+func (handler *Handler) HandleFullRequest(prompt string) (*llm.CompleteAIResponse, error) {
+	resp, err := handler.commonRequestHandler(prompt)
+	if err != nil {
+		return nil, err
+	}
+	return llm.ParseResponse(resp.Body)
+}
+
+// commonRequestHandler - Common code between HandleFullRequest and HandleRequest
+func (handler *Handler) commonRequestHandler(prompt string) (*http.Response, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")
@@ -75,7 +95,11 @@ func (handler *Handler) HandleRequest(prompt string) (<-chan *llm.AIResponse, er
 		return nil, err
 	}
 
-	return llm.ParseStreamedSSE(resp.Body), nil
+	if resp == nil {
+		return nil, fmt.Errorf("nil response")
+	}
+
+	return resp, nil
 }
 
 // GetSSEFlusher - Sets the headers to allow server-side events, and gives us the flusher to immediately push data
