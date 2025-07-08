@@ -32,7 +32,8 @@ func main() {
 		timer := time.Now()
 		fmt.Print("\nModel Response: ")
 		for data := range dataStream {
-			fmt.Print(data)
+			bestChoice := data.Choices[0]
+			fmt.Print(bestChoice.Delta.Content)
 		}
 		fmt.Println()
 

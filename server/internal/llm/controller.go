@@ -15,38 +15,43 @@ import (
 const (
 	llmUrl     = "https://api.groq.com/openai/v1/chat/completions"
 	promptFile = "assets/prompt.txt"
+	model      = "meta-llama/llama-4-scout-17b-16e-instruct"
 )
 
 type stream bool
+type Role string
 
 const (
 	StreamedResponse stream = true
 	FullResponse     stream = false
+	UserRole         Role   = "user"
+	AssistantRole    Role   = "assistant"
 )
 
-// message API format for a message
-type message struct {
-	Role    string `json:"role"`
+// AIMessage - Message API format for a message (`messages` for request, `delta` for response)
+type AIMessage struct {
+	Role    Role   `json:"role"`
 	Content string `json:"content"`
 }
 
 // promptRequest Request format for the API
 type promptRequest struct {
-	Messages []message `json:"messages"`
-	Model    string    `json:"model"`
-	Stream   stream    `json:"stream"`
+	Messages []AIMessage `json:"messages"`
+	Model    string      `json:"model"`
+	Stream   stream      `json:"stream"`
 }
 
 func SendPrompt(prompt string, apiKey string, streaming stream) (*http.Response, error) {
-	messages := make([]message, 1)
-	messages = append(messages, message{
-		Role:    "user",
-		Content: prompt,
-	})
+	messages := []AIMessage{
+		{
+			Role:    UserRole,
+			Content: prompt,
+		},
+	}
 
 	request := promptRequest{
 		Messages: messages,
-		Model:    "meta-llama/llama-4-scout-17b-16e-instruct",
+		Model:    model,
 		Stream:   streaming,
 	}
 	parsedRequest, _ := json.Marshal(request)

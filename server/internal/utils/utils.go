@@ -31,7 +31,7 @@ func MakePostRequest(url string, data *bytes.Reader, reuseClient *http.Client) (
 
 // why doesn't http.Post have an option for headers? le dummys
 
-// MakeHeadersRequest - Improve the stupid http.Post/http.Get format. Does not close body.
+// MakeHeadersRequest - Improve the stupid http.Post/http.Get (imo uwu) format. Does not close body.
 func MakeHeadersRequest(url string, body io.Reader, client *http.Client, headers ...Header) (*http.Response, error) {
 	if client == nil {
 		return nil, fmt.Errorf("nil http client")

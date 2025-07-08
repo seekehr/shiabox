@@ -43,7 +43,7 @@ func NewHandler() (*Handler, error) {
 	}, nil
 }
 
-func (handler *Handler) HandleRequest(prompt string) (chan string, error) {
+func (handler *Handler) HandleRequest(prompt string) (<-chan llm.AIResponse, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")

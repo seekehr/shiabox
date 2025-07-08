@@ -10,16 +10,27 @@ import (
 	"strings"
 )
 
+type FinishReasonType string
+
 const (
-	bufferSize = 2 * 1024 * 1024 // 2 mib
+	bufferSize                          = 2 * 1024 * 1024 // 2 mib
+	StopFinishReason   FinishReasonType = "stop"
+	LengthFinishReason FinishReasonType = "length"
+	FilterFinishReason FinishReasonType = "content_filter"
 )
 
-type responseChunk struct {
-	Response string `json:"response"`
+type AIChoice struct {
+	Index        int              `json:"index"`
+	FinishReason FinishReasonType `json:"finish_reason"`
+	Delta        AIMessage        `json:"delta"`
 }
 
-// ParseStreamedResponse - Deprecated
-func ParseStreamedResponse(body io.ReadCloser) chan string {
+type AIResponse struct {
+	Choices []AIChoice `json:"choices"`
+}
+
+// Unused for now.
+/*func ParseStreamedResponse(body io.ReadCloser) chan string {
 	dataChan := make(chan string)
 	go func() {
 		defer func() {
@@ -30,7 +41,7 @@ func ParseStreamedResponse(body io.ReadCloser) chan string {
 			// an interface is copied not the entire value (unlike structs)
 			close(dataChan)
 		}()
-		var chunk responseChunk
+		var chunk AIResponse
 
 		scanner := bufio.NewScanner(body)
 		scanner.Buffer(make([]byte, 0, 64*1024), bufferSize)
@@ -44,10 +55,11 @@ func ParseStreamedResponse(body io.ReadCloser) chan string {
 		}
 	}()
 	return dataChan
-}
+}*/
 
-func ParseStreamedSSE(body io.ReadCloser) <-chan string {
-	dataChan := make(chan string)
+// ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
+func ParseStreamedSSE(body io.ReadCloser) <-chan AIResponse {
+	dataChan := make(chan AIResponse)
 
 	go func() {
 		defer func() {
@@ -77,18 +89,17 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan string {
 				if strings.HasPrefix(event, "data: ") {
 					payload := strings.TrimPrefix(event, "data: ")
 					payload = strings.TrimSpace(payload) // strip trailing \r
-
 					// Groq ends the stream with: data: [DONE]
 					if payload == "[DONE]" {
 						return
 					}
 
-					var chunk responseChunk
-					if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+					var response AIResponse
+					if err := json.Unmarshal([]byte(payload), &response); err != nil {
 						fmt.Println("unmarshal error:", err)
 						continue
 					}
-					dataChan <- chunk.Response
+					dataChan <- response
 				}
 				// ignore other SSE fields like "event:" or "retry:"; not mentioned in the api doc
 				continue
