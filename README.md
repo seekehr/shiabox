@@ -1,5 +1,5 @@
 # shiabox
-Mistral-powered search engine for Shi'a ahadith, utilising a RAG architecture with Qdrant for the vector database and mxbai-embed-large for embeddings.
+AI-powered search engine for Shi'a ahadith, utilising a RAG architecture with Qdrant for the vector database and mxbai-embed-large for embeddings.
 
 # How does it work?
 #### `setup.go`
