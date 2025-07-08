@@ -2,9 +2,12 @@ package llm
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 const (
@@ -15,6 +18,7 @@ type responseChunk struct {
 	Response string `json:"response"`
 }
 
+// ParseStreamedResponse - Deprecated
 func ParseStreamedResponse(body io.ReadCloser) chan string {
 	dataChan := make(chan string)
 	go func() {
@@ -39,5 +43,61 @@ func ParseStreamedResponse(body io.ReadCloser) chan string {
 			}
 		}
 	}()
+	return dataChan
+}
+
+func ParseStreamedSSE(body io.ReadCloser) <-chan string {
+	dataChan := make(chan string)
+
+	go func() {
+		defer func() {
+			body.Close()
+			close(dataChan)
+		}()
+
+		reader := bufio.NewReader(body)
+		var buf bytes.Buffer
+
+		for {
+			// Read up to the next newline
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				// EOF or ntwk error ends the stream
+				if !errors.Is(err, io.EOF) {
+					fmt.Println("read error:", err)
+				}
+				return
+			}
+
+			// delimeter reaached
+			if line == "\n" || line == "\r\n" {
+				event := buf.String()
+				buf.Reset()
+
+				if strings.HasPrefix(event, "data: ") {
+					payload := strings.TrimPrefix(event, "data: ")
+					payload = strings.TrimSpace(payload) // strip trailing \r
+
+					// Groq ends the stream with: data: [DONE]
+					if payload == "[DONE]" {
+						return
+					}
+
+					var chunk responseChunk
+					if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+						fmt.Println("unmarshal error:", err)
+						continue
+					}
+					dataChan <- chunk.Response
+				}
+				// ignore other SSE fields like "event:" or "retry:"; not mentioned in the api doc
+				continue
+			}
+
+			// Not a blank line yet so keep buffering
+			buf.WriteString(line)
+		}
+	}()
+
 	return dataChan
 }

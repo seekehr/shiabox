@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"os"
 	"server/internal/constants"
+	"server/internal/utils"
 	"strconv"
 	"strings"
 )
 
 const (
-	llmUrl     = "http://localhost:11434/api/generate"
+	llmUrl     = "https://api.groq.com/openai/v1/chat/completions"
 	promptFile = "assets/prompt.txt"
 )
 
@@ -23,27 +24,39 @@ const (
 	FullResponse     stream = false
 )
 
-// ollamaRequest Request format for the API
-type ollamaRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	Stream stream `json:"stream"`
+// message API format for a message
+type message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
-func SendPrompt(prompt string, streaming stream) (*http.Response, error) {
-	request := ollamaRequest{
-		Model:  "mistral",
-		Prompt: prompt,
-		Stream: streaming,
+// promptRequest Request format for the API
+type promptRequest struct {
+	Messages []message `json:"messages"`
+	Model    string    `json:"model"`
+	Stream   stream    `json:"stream"`
+}
+
+func SendPrompt(prompt string, apiKey string, streaming stream) (*http.Response, error) {
+	messages := make([]message, 1)
+	messages = append(messages, message{
+		Role:    "user",
+		Content: prompt,
+	})
+
+	request := promptRequest{
+		Messages: messages,
+		Model:    "meta-llama/llama-4-scout-17b-16e-instruct",
+		Stream:   streaming,
 	}
 	parsedRequest, _ := json.Marshal(request)
-
-	resp, err := http.Post(llmUrl, "application/json", bytes.NewBuffer(parsedRequest))
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return utils.MakeHeadersRequest(llmUrl, bytes.NewReader(parsedRequest), &http.Client{}, utils.Header{
+		Key:   "Authorization",
+		Value: "Bearer " + apiKey,
+	}, utils.Header{
+		Key:   "Content-Type",
+		Value: "application/json",
+	})
 }
 
 func BuildPrompt(llmPrompt string, inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
