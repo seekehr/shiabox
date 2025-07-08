@@ -18,6 +18,7 @@ import (
 const (
 	FlagParseBooks   = 0
 	FlagInitVectors  = 1
+	FlagInitBoth     = 2
 	MaxVectors       = 50
 	MaxVectorWorkers = 10
 )
@@ -41,6 +42,9 @@ func main() {
 		if flagged == FlagParseBooks {
 			parseBooks()
 		} else if flagged == FlagInitVectors {
+			initVectors(db)
+		} else if flagged == FlagInitBoth {
+			parseBooks()
 			initVectors(db)
 		} else {
 			panic("invalid flag: " + strconv.Itoa(flagged))
