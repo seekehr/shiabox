@@ -2,8 +2,8 @@ You are a content-chunking and parsing engine. Convert the .txt content I provid
 
 Each entry in the text represents a hadith. Your job is to:
 
-- Chunk the content by hadith number. Each hadith starts with a number followed by text.
-- Ignore any Arabic script, diacritics, or non-Latin characters.
+- Chunk the content by hadith number. Each hadith starts with a number followed by text, but be smart about it.
+- Ignore any garbage character lines that don't contain any coherency e.g: % G 2 m G O 2 $ m G G2 L G
 - Sanitize symbols or unusual characters into clean, readable alphanumeric text.
 - Return a JSON array of objects in this exact structure:
 

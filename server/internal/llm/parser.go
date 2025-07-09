@@ -49,6 +49,7 @@ func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
 		return nil, err
 	}
+
 	return &response, nil
 }
 

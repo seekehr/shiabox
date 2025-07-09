@@ -1,5 +1,7 @@
 package llm
 
+// All about SENDING api requests to the LLM
+
 import (
 	"bytes"
 	"encoding/json"
@@ -27,6 +29,7 @@ const (
 	FullResponse     stream = false
 	UserRole         Role   = "user"
 	AssistantRole    Role   = "assistant"
+	SystemRole       Role   = "system"
 )
 
 // AIMessage - Message API format for a message (`messages` for request, `delta` for response)
@@ -42,7 +45,7 @@ type promptRequest struct {
 	Stream   stream      `json:"stream"`
 }
 
-func SendPrompt(prompt string, model Model, apiKey string, streaming stream) (*http.Response, error) {
+func SendPrompt(sysPrompt string, userPrompt string, model Model, apiKey string, streaming stream) (*http.Response, error) {
 	messages := []AIMessage{
 		{
 			Role:    UserRole,
@@ -65,9 +68,8 @@ func SendPrompt(prompt string, model Model, apiKey string, streaming stream) (*h
 	})
 }
 
-func BuildPrompt(llmPrompt string, inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
+func BuildPrompt(inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
 	var promptBuilder strings.Builder
-	promptBuilder.WriteString(llmPrompt)
 	promptBuilder.WriteString("InputText: " + inputText + "\n")
 	promptBuilder.WriteString("<START>\n")
 	for _, hadith := range similarHadith {

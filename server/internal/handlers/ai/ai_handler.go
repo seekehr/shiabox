@@ -90,7 +90,6 @@ func (handler *AIHandler) SendRawCompletePrompt(prompt string, model llm.Model) 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	fmt.Println(resp.Body)
 	return llm.ParseResponse(resp.Body)
 }
 
