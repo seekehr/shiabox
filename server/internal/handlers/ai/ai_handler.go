@@ -45,25 +45,6 @@ func NewHandler() (*AIHandler, error) {
 
 // HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
 func (handler *AIHandler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
-	resp, err := handler.commonRequestHandler(prompt)
-	if err != nil {
-		return nil, err
-	}
-
-	return llm.ParseStreamedSSE(resp.Body), nil
-}
-
-// HandleFullRequest - Handle the entire prompt -> AI process, and return the completed response
-func (handler *AIHandler) HandleFullRequest(prompt string) (*llm.CompleteAIResponse, error) {
-	resp, err := handler.commonRequestHandler(prompt)
-	if err != nil {
-		return nil, err
-	}
-	return llm.ParseResponse(resp.Body)
-}
-
-// commonRequestHandler - Common code between HandleFullRequest and HandleRequest
-func (handler *AIHandler) commonRequestHandler(prompt string) (*http.Response, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")
@@ -99,7 +80,18 @@ func (handler *AIHandler) commonRequestHandler(prompt string) (*http.Response, e
 		return nil, fmt.Errorf("nil response")
 	}
 
-	return resp, nil
+	return llm.ParseStreamedSSE(resp.Body), nil
+}
+
+// SendRawCompletePrompt - For non-chat model uses or just sending a custom prompt (or well, for the chunk prompt lol)
+func (handler *AIHandler) SendRawCompletePrompt(prompt string, model llm.Model) (*llm.CompleteAIResponse, error) {
+	resp, err := llm.SendPrompt(prompt, model, handler.llmApiKey, false)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	fmt.Println(resp.Body)
+	return llm.ParseResponse(resp.Body)
 }
 
 // GetSSEFlusher - Sets the headers to allow server-side events, and gives us the flusher to immediately push data

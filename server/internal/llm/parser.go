@@ -36,7 +36,7 @@ type AIChoice struct {
 
 // CompleteAIResponse - API Response by Groq, when stream is false
 type CompleteAIResponse struct {
-	Choices []AIChoice `json:"choices"`
+	Choices []CompleteAIChoice `json:"choices"`
 }
 
 // AIResponse - API Response by Groq, when stream is true

@@ -91,6 +91,38 @@ func ReadFileBuffered(path string) <-chan string {
 	return dataStream
 }
 
+// ReadFileInChunks - Get a channel to chunkSize portions of your file at a time
+func ReadFileInChunks(path string, chunkSize int) (<-chan string, error) {
+	out := make(chan string)
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer close(out)
+		defer file.Close()
+
+		buf := make([]byte, chunkSize)
+		for {
+			n, err := file.Read(buf)
+			if n > 0 {
+				out <- string(buf[:n])
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				fmt.Printf("error reading chunk: %v\n", err)
+				break
+			}
+		}
+	}()
+
+	return out, nil
+}
+
 // SavePDFAsTxt - Used primarily by setup.go to save our pdf books in zero-formatting .txt format. Require's poppler's pdftotext
 func SavePDFAsTxt(pdfPath string, txtPath string) error {
 	err := exec.Command("pdftotext", "-enc", "ASCII7", pdfPath, txtPath).Run()

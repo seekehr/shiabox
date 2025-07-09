@@ -20,14 +20,15 @@ import (
 )
 
 const (
-	FlagInitBooks    = 0
-	FlagEmbedBooks   = 1
-	FlagInitVectors  = 2
-	FlagInitBoth     = 3
-	FlagInitAll      = 4
-	MaxParsers       = 30 // 30 rpm is the ratelimit for groq
-	MaxVectors       = 50
-	MaxVectorWorkers = 10
+	FlagInitBooks        = 0
+	FlagEmbedBooks       = 1
+	FlagInitVectors      = 2
+	FlagInitBoth         = 3
+	FlagInitAll          = 4
+	MaxParsers           = 5 // 30 rpm is the ratelimit for groq. however, we use 5 cuz it might be lower
+	MaxVectors           = 50
+	MaxVectorWorkers     = 10
+	TokensSentPerRequest = 20000 // max completion token limit is 32k so this seems good for now ig
 )
 
 func main() {
@@ -36,12 +37,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = llm.ReadParserPrompt()
+	parserPrompt, err := llm.ReadParserPrompt()
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = handlers.NewHandler()
+	handler, err := handlers.NewHandler()
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +57,7 @@ func main() {
 		timeStart := time.Now()
 		if flagged == FlagInitBooks {
 			initBooks()
-			//chunkBooks(parserPrompt, handler)
+			chunkBooks(parserPrompt, handler)
 		} else if flagged == FlagEmbedBooks {
 			fmt.Println("Generating embeddings...")
 			embedBooks()
@@ -117,7 +118,7 @@ func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 	var (
 		wg sync.WaitGroup
 	)
-	// 60 / 30 = 2. so 1 goroutine every 2 seconds to prevent Groq API ratelimiting
+	// 60 / X = Y. so Y goroutine every 2 seconds to prevent Groq API ratelimiting
 	rateLimiter := time.NewTicker(time.Second / MaxParsers)
 	defer rateLimiter.Stop()
 
@@ -130,15 +131,29 @@ func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 		<-rateLimiter.C
 		wg.Add(1)
 		go func(fileName string) {
-			//data := os.Open(constants.UnparsedBooksDir + fileName)
-
-			_, err := handler.HandleFullRequest(llm.BuildParserPrompt(parserPrompt, ""))
+			defer wg.Done()
+			fileContent, err := utils.ReadFileInChunks(constants.UnparsedBooksDir+fileName, TokensSentPerRequest)
 			if err != nil {
 				panic(err)
 			}
-			//bestChoice := request.Choices[0]
 
-			defer wg.Done()
+			i := 0
+			choices := ""
+			for promptTokens := range fileContent {
+				prompt := llm.BuildParserPrompt(parserPrompt, promptTokens)
+				resp, err := handler.SendRawCompletePrompt(prompt, llm.ParserModel)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Received " + strconv.Itoa(i) + " chunks of " + fileName)
+				i++
+				if len(resp.Choices) > 0 {
+					choices += resp.Choices[0].Message.Content
+				} else {
+					fmt.Println(resp)
+				}
+			}
+			utils.SaveDataToLogs(choices)
 		}(entry.Name())
 	}
 
