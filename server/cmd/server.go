@@ -27,6 +27,6 @@ func main() {
 	e.Logger.Fatal(e.Start(":1323"))
 }
 
-func InitRoutes(e *echo.Echo, handler *handlers.Handler) {
+func InitRoutes(e *echo.Echo, handler *handlers.AIHandler) {
 	routing.InitGetRoutes(e, handler)
 }

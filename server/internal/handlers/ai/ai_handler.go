@@ -14,14 +14,14 @@ import (
 	"time"
 )
 
-// Handler - Handles the entire User -> AI communication
-type Handler struct {
+// AIHandler - Handles the entire User -> AI communication.
+type AIHandler struct {
 	llmApiKey string // cool design uwu. we do not expose any of these as theyre used only in methods of Handler
 	vectorDb  *vector.Db
 	llmPrompt string
 }
 
-func NewHandler() (*Handler, error) {
+func NewHandler() (*AIHandler, error) {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GROQ_API_KEY env var not set")
@@ -36,7 +36,7 @@ func NewHandler() (*Handler, error) {
 		return nil, err
 	}
 
-	return &Handler{
+	return &AIHandler{
 		llmApiKey: apiKey,
 		vectorDb:  vectorDb,
 		llmPrompt: llmPrompt,
@@ -44,7 +44,7 @@ func NewHandler() (*Handler, error) {
 }
 
 // HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
-func (handler *Handler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
+func (handler *AIHandler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
 	resp, err := handler.commonRequestHandler(prompt)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (handler *Handler) HandleRequest(prompt string) (<-chan *llm.AIResponse, er
 }
 
 // HandleFullRequest - Handle the entire prompt -> AI process, and return the completed response
-func (handler *Handler) HandleFullRequest(prompt string) (*llm.CompleteAIResponse, error) {
+func (handler *AIHandler) HandleFullRequest(prompt string) (*llm.CompleteAIResponse, error) {
 	resp, err := handler.commonRequestHandler(prompt)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (handler *Handler) HandleFullRequest(prompt string) (*llm.CompleteAIRespons
 }
 
 // commonRequestHandler - Common code between HandleFullRequest and HandleRequest
-func (handler *Handler) commonRequestHandler(prompt string) (*http.Response, error) {
+func (handler *AIHandler) commonRequestHandler(prompt string) (*http.Response, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")

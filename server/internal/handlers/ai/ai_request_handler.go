@@ -11,7 +11,7 @@ type processRequestBody struct {
 	Prompt string `json:"prompt"`
 }
 
-func (handler *Handler) PostRequestHandler(c echo.Context) error {
+func (handler *AIHandler) PostRequestHandler(c echo.Context) error {
 	flusher, err := GetSSEFlusher(c)
 	if err != nil {
 		return c.JSON(500, handlers.StreamReturnType{

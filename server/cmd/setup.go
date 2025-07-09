@@ -10,6 +10,7 @@ import (
 	"server/internal/constants"
 	"server/internal/embedding"
 	handlers "server/internal/handlers/ai"
+	"server/internal/llm"
 	"server/internal/utils"
 	"server/internal/vector"
 	"strconv"
@@ -35,7 +36,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	handler, err := handlers.NewHandler()
+	_, err = llm.ReadParserPrompt()
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = handlers.NewHandler()
 	if err != nil {
 		panic(err)
 	}
@@ -50,6 +56,7 @@ func main() {
 		timeStart := time.Now()
 		if flagged == FlagInitBooks {
 			initBooks()
+			//chunkBooks(parserPrompt, handler)
 		} else if flagged == FlagEmbedBooks {
 			fmt.Println("Generating embeddings...")
 			embedBooks()
@@ -67,7 +74,7 @@ func main() {
 
 }
 
-func initBooks(handler *handlers.Handler) {
+func initBooks() {
 	var parseWg sync.WaitGroup // because chunking relies on the .txt books so parsing them must be done first
 
 	fmt.Println("MAKE SURE YOU HAVE PDFTOTEXT BY POPPLER'S UTILS INSTALLED.")
@@ -99,7 +106,7 @@ func initBooks(handler *handlers.Handler) {
 	fmt.Println("Converting books to txt done in: ", time.Since(timer).String())
 }
 
-func chunkBooks(handler *handlers.Handler) {
+func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 	// txt format books to chunk
 	timer := time.Now()
 	txtBooks, err := os.ReadDir(constants.UnparsedBooksDir)
@@ -123,7 +130,14 @@ func chunkBooks(handler *handlers.Handler) {
 		<-rateLimiter.C
 		wg.Add(1)
 		go func(fileName string) {
-			handler.HandleFullRequest()
+			//data := os.Open(constants.UnparsedBooksDir + fileName)
+
+			_, err := handler.HandleFullRequest(llm.BuildParserPrompt(parserPrompt, ""))
+			if err != nil {
+				panic(err)
+			}
+			//bestChoice := request.Choices[0]
+
 			defer wg.Done()
 		}(entry.Name())
 	}

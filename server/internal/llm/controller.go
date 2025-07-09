@@ -3,9 +3,7 @@ package llm
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
-	"os"
 	"server/internal/constants"
 	"server/internal/utils"
 	"strconv"
@@ -13,10 +11,11 @@ import (
 )
 
 const (
-	llmUrl            = "https://api.groq.com/openai/v1/chat/completions"
-	promptFile        = "assets/prompt.txt"
-	ParserModel Model = "llama-3.3-70b-versatile"
-	ChatModel   Model = "meta-llama/llama-4-scout-17b-16e-instruct"
+	llmUrl                 = "https://api.groq.com/openai/v1/chat/completions"
+	parserPromptFile       = "assets/books_parser_prompt.txt"
+	promptFile             = "assets/prompt.txt"
+	ParserModel      Model = "llama-3.3-70b-versatile"
+	ChatModel        Model = "meta-llama/llama-4-scout-17b-16e-instruct"
 )
 
 type stream bool
@@ -83,15 +82,17 @@ func BuildPrompt(llmPrompt string, inputText string, similarHadith []constants.H
 	return promptBuilder.String()
 }
 
+func BuildParserPrompt(llmPrompt string, inputText string) string {
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(llmPrompt)
+	promptBuilder.WriteString("\n" + inputText)
+	return promptBuilder.String()
+}
+
 func ReadPrompt() (string, error) {
-	file, err := os.Open(promptFile)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
+	return utils.ReadTextFromFile(promptFile)
+}
+
+func ReadParserPrompt() (string, error) {
+	return utils.ReadTextFromFile(parserPromptFile)
 }

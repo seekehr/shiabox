@@ -1,5 +1,7 @@
 package llm
 
+// Parse responses returned from controller.go
+
 import (
 	"bufio"
 	"bytes"
@@ -13,7 +15,6 @@ import (
 type FinishReasonType string
 
 const (
-	bufferSize                          = 2 * 1024 * 1024 // 2 mib
 	StopFinishReason   FinishReasonType = "stop"
 	LengthFinishReason FinishReasonType = "length"
 	FilterFinishReason FinishReasonType = "content_filter"
