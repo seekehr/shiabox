@@ -6,10 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"server/internal/constants"
 	"server/internal/utils"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -48,8 +45,12 @@ type promptRequest struct {
 func SendPrompt(sysPrompt string, userPrompt string, model Model, apiKey string, streaming stream) (*http.Response, error) {
 	messages := []AIMessage{
 		{
+			Role:    SystemRole,
+			Content: sysPrompt,
+		},
+		{
 			Role:    UserRole,
-			Content: prompt,
+			Content: userPrompt,
 		},
 	}
 
@@ -66,35 +67,4 @@ func SendPrompt(sysPrompt string, userPrompt string, model Model, apiKey string,
 		Key:   "Content-Type",
 		Value: "application/json",
 	})
-}
-
-func BuildPrompt(inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString("InputText: " + inputText + "\n")
-	promptBuilder.WriteString("<START>\n")
-	for _, hadith := range similarHadith {
-		promptBuilder.WriteString("Hadith: " + strconv.Itoa(hadith.Hadith) + "\n")
-		promptBuilder.WriteString("Page: " + strconv.Itoa(hadith.Page) + "\n")
-		promptBuilder.WriteString("Book: " + hadith.Book + "\n")
-		promptBuilder.WriteString("Score: " + strconv.FormatFloat(float64(hadith.Score), 'f', -1, 32) + "\n")
-		promptBuilder.WriteString("Content: " + hadith.Content + "\n")
-		promptBuilder.WriteString("\n=====\n")
-	}
-	promptBuilder.WriteString("<END>\n")
-	return promptBuilder.String()
-}
-
-func BuildParserPrompt(llmPrompt string, inputText string) string {
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString(llmPrompt)
-	promptBuilder.WriteString("\n" + inputText)
-	return promptBuilder.String()
-}
-
-func ReadPrompt() (string, error) {
-	return utils.ReadTextFromFile(promptFile)
-}
-
-func ReadParserPrompt() (string, error) {
-	return utils.ReadTextFromFile(parserPromptFile)
 }

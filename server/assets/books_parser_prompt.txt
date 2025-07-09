@@ -27,4 +27,4 @@ Example:
 
 ⚠Do not include any commentary, headings, notes, or explanations — only the JSON output.
 
-Input:
+The input will be in the message by 'user'.

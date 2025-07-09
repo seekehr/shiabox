@@ -1,6 +1,6 @@
 package llm
 
-// Parse responses returned from controller.go
+// Parse responses returned/provided from/to controller.go
 
 import (
 	"bufio"
@@ -9,6 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"server/internal/constants"
+	"server/internal/utils"
+	"strconv"
 	"strings"
 )
 
@@ -44,6 +47,14 @@ type AIResponse struct {
 	Choices []AIChoice `json:"choices"`
 }
 
+func ReadPrompt() (string, error) {
+	return utils.ReadTextFromFile(promptFile)
+}
+
+func ReadParserPrompt() (string, error) {
+	return utils.ReadTextFromFile(parserPromptFile)
+}
+
 func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	var response CompleteAIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
@@ -51,6 +62,28 @@ func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	}
 
 	return &response, nil
+}
+
+func BuildChatPrompt(inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString("InputText: " + inputText + "\n")
+	promptBuilder.WriteString("<START>\n")
+	for _, hadith := range similarHadith {
+		promptBuilder.WriteString("Hadith: " + strconv.Itoa(hadith.Hadith) + "\n")
+		promptBuilder.WriteString("Page: " + strconv.Itoa(hadith.Page) + "\n")
+		promptBuilder.WriteString("Book: " + hadith.Book + "\n")
+		promptBuilder.WriteString("Score: " + strconv.FormatFloat(float64(hadith.Score), 'f', -1, 32) + "\n")
+		promptBuilder.WriteString("Content: " + hadith.Content + "\n")
+		promptBuilder.WriteString("\n=====\n")
+	}
+	promptBuilder.WriteString("<END>\n")
+	return promptBuilder.String()
+}
+
+func BuildParserPrompt(inputText string) string {
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString("\n" + inputText)
+	return promptBuilder.String()
 }
 
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel

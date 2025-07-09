@@ -16,9 +16,9 @@ import (
 
 // AIHandler - Handles the entire User -> AI communication.
 type AIHandler struct {
-	llmApiKey string // cool design uwu. we do not expose any of these as theyre used only in methods of Handler
+	llmApiKey string
 	vectorDb  *vector.Db
-	llmPrompt string
+	LlmPrompt string // only expose this as it is needed to prevent reading prompt from disk everytime
 }
 
 func NewHandler() (*AIHandler, error) {
@@ -39,12 +39,12 @@ func NewHandler() (*AIHandler, error) {
 	return &AIHandler{
 		llmApiKey: apiKey,
 		vectorDb:  vectorDb,
-		llmPrompt: llmPrompt,
+		LlmPrompt: llmPrompt,
 	}, nil
 }
 
 // HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
-func (handler *AIHandler) HandleRequest(prompt string) (<-chan *llm.AIResponse, error) {
+func (handler *AIHandler) HandleRequest(sysPrompt string, prompt string) (<-chan *llm.AIResponse, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")
@@ -62,11 +62,11 @@ func (handler *AIHandler) HandleRequest(prompt string) (<-chan *llm.AIResponse, 
 
 	fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
 	fmt.Println("Building prompt...")
-	parsedPrompt := llm.BuildPrompt(handler.llmPrompt, prompt, foundVectors)
+	parsedPrompt := llm.BuildChatPrompt(prompt, foundVectors)
 	fmt.Println("Prompt built and db searched in " + time.Since(start).String() + ".")
 	fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
 
-	resp, err := llm.SendPrompt(parsedPrompt, llm.ChatModel, handler.llmApiKey, true)
+	resp, err := llm.SendPrompt(sysPrompt, parsedPrompt, llm.ChatModel, handler.llmApiKey, true)
 	if resp != nil && resp.StatusCode == 429 {
 		return nil, fmt.Errorf("ratelimit")
 	}
@@ -83,9 +83,9 @@ func (handler *AIHandler) HandleRequest(prompt string) (<-chan *llm.AIResponse, 
 	return llm.ParseStreamedSSE(resp.Body), nil
 }
 
-// SendRawCompletePrompt - For non-chat model uses or just sending a custom prompt (or well, for the chunk prompt lol)
-func (handler *AIHandler) SendRawCompletePrompt(prompt string, model llm.Model) (*llm.CompleteAIResponse, error) {
-	resp, err := llm.SendPrompt(prompt, model, handler.llmApiKey, false)
+// HandleCompletePrompt - For non-streaming uses
+func (handler *AIHandler) HandleCompletePrompt(sysPrompt string, prompt string, model llm.Model) (*llm.CompleteAIResponse, error) {
+	resp, err := llm.SendPrompt(sysPrompt, prompt, model, handler.llmApiKey, false)
 	if err != nil {
 		return nil, err
 	}

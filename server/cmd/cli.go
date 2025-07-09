@@ -23,7 +23,7 @@ func main() {
 			return
 		}
 
-		dataStream, err := handler.HandleRequest(input)
+		dataStream, err := handler.HandleRequest(handler.LlmPrompt, input)
 		if err != nil {
 			fmt.Printf("Error handling request: %v\n", err)
 			return

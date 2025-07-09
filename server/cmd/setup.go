@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/qdrant/go-client/qdrant"
+	"math"
 	"os"
 	"server/internal/constants"
 	"server/internal/embedding"
@@ -25,7 +26,7 @@ const (
 	FlagInitVectors      = 2
 	FlagInitBoth         = 3
 	FlagInitAll          = 4
-	MaxParsers           = 5 // 30 rpm is the ratelimit for groq. however, we use 5 cuz it might be lower
+	MaxParsers           = 30 // 30 rpm is the ratelimit for groq
 	MaxVectors           = 50
 	MaxVectorWorkers     = 10
 	TokensSentPerRequest = 20000 // max completion token limit is 32k so this seems good for now ig
@@ -107,6 +108,7 @@ func initBooks() {
 	fmt.Println("Converting books to txt done in: ", time.Since(timer).String())
 }
 
+// todo: chunkjob
 func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 	// txt format books to chunk
 	timer := time.Now()
@@ -116,45 +118,84 @@ func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 	}
 
 	var (
-		wg sync.WaitGroup
+		wg                 sync.WaitGroup
+		activeWorkersMutex sync.Mutex
+		firstRequest       *time.Time // used for tracking if 60 seconds have passed since the first request
 	)
-	// 60 / X = Y. so Y goroutine every 2 seconds to prevent Groq API ratelimiting
-	rateLimiter := time.NewTicker(time.Second / MaxParsers)
-	defer rateLimiter.Stop()
+
+	// each file will have its own lock so we don't use another file's lock by accident
+	fileLocks := make(map[string]*sync.Mutex)
+	activeWorkers := 0
 
 	for _, entry := range txtBooks {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".txt") {
 			continue
 		}
 
-		// time.Ticker uses a channel so we can wait on the channel to send a new 'tick' and then continue
-		<-rateLimiter.C
-		wg.Add(1)
-		go func(fileName string) {
-			defer wg.Done()
-			fileContent, err := utils.ReadFileInChunks(constants.UnparsedBooksDir+fileName, TokensSentPerRequest)
-			if err != nil {
-				panic(err)
+		fileContent, err := utils.ReadFileInChunks(constants.UnparsedBooksDir+entry.Name(), TokensSentPerRequest)
+		if err != nil {
+			panic(err)
+		}
+
+		jsonFile, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(entry.Name(), ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		fileLocks[jsonFile.Name()] = &sync.Mutex{} // OUR file lock :DDD
+		// we need to convert it to float for values like e.g 5.6 and then round up to account for left-over chunks
+		numberOfRequestsNeeded := int(math.Ceil(float64(len(fileContent)) / float64(TokensSentPerRequest)))
+		for i := 0; i < numberOfRequestsNeeded; i++ {
+			if firstRequest != nil && time.Since(*firstRequest) < time.Second {
+				if activeWorkers > MaxParsers {
+					sleepDuration := time.Second - time.Since(*firstRequest)
+					fmt.Println("Max Parsers reached, waiting for " + sleepDuration.String() + "...")
+					time.Sleep(sleepDuration)
+				}
 			}
 
-			i := 0
-			choices := ""
-			for promptTokens := range fileContent {
-				prompt := llm.BuildParserPrompt(parserPrompt, promptTokens)
-				resp, err := handler.SendRawCompletePrompt(prompt, llm.ParserModel)
-				if err != nil {
-					panic(err)
-				}
-				fmt.Println("Received " + strconv.Itoa(i) + " chunks of " + fileName)
-				i++
-				if len(resp.Choices) > 0 {
-					choices += resp.Choices[0].Message.Content
-				} else {
-					fmt.Println(resp)
-				}
+			if firstRequest == nil {
+				currentTime := time.Now()
+				firstRequest = &currentTime
+				go func() {
+					time.Sleep(time.Second)
+					firstRequest = nil
+					fmt.Println("Reset first request.")
+				}()
 			}
-			utils.SaveDataToLogs(choices)
-		}(entry.Name())
+
+			activeWorkers += 1
+			wg.Add(1)
+			// communism
+			go func(ourJsonFile *os.File, ourFileChannel <-chan string) {
+				fmt.Println("Started worker number #" + strconv.Itoa(activeWorkers))
+				defer func() {
+					activeWorkersMutex.Lock()
+					activeWorkers--
+					activeWorkersMutex.Unlock()
+					wg.Done()
+				}()
+				for promptTokens := range ourFileChannel {
+					prompt := llm.BuildParserPrompt(promptTokens)
+					resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, llm.ParserModel)
+					if err != nil {
+						panic(err)
+					}
+					ourFileLock, exists := fileLocks[ourJsonFile.Name()]
+					if !exists {
+						panic("bruh wheres OUR file lock for " + ourJsonFile.Name())
+					}
+					ourFileLock.Lock()
+					// o o o o o mg!!! WHAT IF INDEX OUT OF RANGE?!?! well, yolo (technically u live in hereafter too so yea)
+					_, err = ourJsonFile.Write([]byte(resp.Choices[0].Message.Content + "\n"))
+					if err != nil {
+						panic(err)
+					}
+					ourFileLock.Unlock()
+				}
+			}(jsonFile, fileContent)
+		}
+		jsonFile.Close()
 	}
 
 	wg.Wait()
