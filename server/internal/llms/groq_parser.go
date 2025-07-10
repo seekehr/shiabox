@@ -38,7 +38,7 @@ type StreamedAIResponse struct {
 
 type GroqParser struct{}
 
-func (p *GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
+func (GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	var response CompleteAIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (p *GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, err
 }
 
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
-func (p *GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *StreamedAIResponse {
+func (GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *StreamedAIResponse {
 	dataChan := make(chan *StreamedAIResponse)
 
 	go func() {

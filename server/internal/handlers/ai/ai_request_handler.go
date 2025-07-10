@@ -42,7 +42,7 @@ func (handler *AIHandler) PostRequestHandler(c echo.Context) error {
 		return nil
 	}
 
-	dataStream, err := handler.HandleRequest(handler.LlmPrompt, prompt)
+	dataStream, err := handler.HandleChatRequest(prompt)
 	if err != nil {
 		message := "Error handling request. Error: " + err.Error()
 		if err.Error() == "ratelimit" {

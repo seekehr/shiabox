@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"bufio"
 	"context"
@@ -46,6 +47,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	parserPrompt, err := groq.ReadChunkerPrompt()
 	if err != nil {
 		panic(err)
@@ -257,7 +259,7 @@ func initVectors(vectorDb *vector.Db) {
 		because the total size is not known. if the size is exceeded, then wg.Wait() will never be finished as the sender goroutines
 		will block due to lack of space in the channel. it's also slower to send everything first and then process, than it is to
 		process while data is being sent.
-	*/
+*/ /*
 	doneWg.Add(1)
 	go func() {
 		defer doneWg.Done()
@@ -313,3 +315,4 @@ func initVectors(vectorDb *vector.Db) {
 
 	fmt.Printf("Vector count: %d\n", resp.Result.Count)
 }
+*/
