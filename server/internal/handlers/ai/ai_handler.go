@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 	"server/internal/embedding"
-	"server/internal/llm"
+	"server/internal/llms/groq"
 	"server/internal/vector"
 	"strconv"
 	"strings"
@@ -22,76 +22,20 @@ type AIHandler struct {
 }
 
 func NewHandler() (*AIHandler, error) {
-	apiKey := os.Getenv("GROQ_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("GROQ_API_KEY env var not set")
-	}
 
-	llmPrompt, err := llm.ReadPrompt()
-	if err != nil {
-		return nil, err
-	}
-	vectorDb, err := vector.Connect()
-	if err != nil {
-		return nil, err
-	}
-
-	return &AIHandler{
-		llmApiKey: apiKey,
-		vectorDb:  vectorDb,
-		LlmPrompt: llmPrompt,
-	}, nil
 }
 
 // HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
-func (handler *AIHandler) HandleRequest(sysPrompt string, prompt string) (<-chan *llm.AIResponse, error) {
-	start := time.Now()
-	prompt = strings.TrimSpace(prompt)
-	fmt.Println("\n\n====\nEmbedding prompt...")
-	vectors, err := embedding.EmbedText(prompt, nil)
-	if err != nil {
-		fmt.Printf("Error embedding prompt: %v\n", err)
-		return nil, err
-	}
-
-	fmt.Println("Prompt embedded of vec length " + strconv.Itoa(len(vectors)) + ". Now searching the prompt in the vector db...")
-	foundVectors, err := handler.vectorDb.Search(vectors)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println(strconv.Itoa(len(foundVectors)) + " responses found.")
-	fmt.Println("Building prompt...")
-	parsedPrompt := llm.BuildChatPrompt(prompt, foundVectors)
-	fmt.Println("Prompt built and db searched in " + time.Since(start).String() + ".")
-	fmt.Println("Sending prompt... (tokens: " + strconv.Itoa(len(parsedPrompt)) + " )")
-
-	resp, err := llm.SendPrompt(sysPrompt, parsedPrompt, llm.ChatModel, handler.llmApiKey, true)
-	if resp != nil && resp.StatusCode == 429 {
-		return nil, fmt.Errorf("ratelimit")
-	}
-
-	if err != nil {
-		fmt.Printf("Error sending prompt: %v\n", err)
-		return nil, err
-	}
-
-	if resp == nil {
-		return nil, fmt.Errorf("nil response")
-	}
-
-	return llm.ParseStreamedSSE(resp.Body), nil
-}
 
 // HandleCompletePrompt - For non-streaming uses
-func (handler *AIHandler) HandleCompletePrompt(sysPrompt string, prompt string, model llm.Model) (*llm.CompleteAIResponse, error) {
-	resp, err := llm.SendPrompt(sysPrompt, prompt, model, handler.llmApiKey, false)
+func (handler *AIHandler) HandleCompletePrompt(sysPrompt string, prompt string, model groq.Model) (*groq.CompleteAIResponse, error) {
+	resp, err := groq.SendPrompt(sysPrompt, prompt, model, handler.llmApiKey, false)
 	if err != nil {
 		return nil, err
 	}
 	fmt.Println("Status code " + strconv.Itoa(resp.StatusCode))
 	defer resp.Body.Close()
-	return llm.ParseResponse(resp.Body)
+	return groq.ParseResponse(resp.Body)
 }
 
 // GetSSEFlusher - Sets the headers to allow server-side events, and gives us the flusher to immediately push data

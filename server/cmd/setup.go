@@ -10,7 +10,7 @@ import (
 	"server/internal/constants"
 	"server/internal/embedding"
 	handlers "server/internal/handlers/ai"
-	"server/internal/llm"
+	"server/internal/llms/groq"
 	"server/internal/utils"
 	"server/internal/vector"
 	"strconv"
@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	parserPrompt, err := llm.ReadChunkerPrompt()
+	parserPrompt, err := groq.ReadChunkerPrompt()
 	if err != nil {
 		panic(err)
 	}
@@ -189,8 +189,8 @@ func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 			}
 			defer file.Close()
 
-			prompt := llm.BuildChunkerInputPrompt(job.Chunk)
-			resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, llm.ParserModel)
+			prompt := groq.BuildChunkerInputPrompt(job.Chunk)
+			resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, groq.ParserModel)
 			if err != nil {
 				panic(err)
 			}
@@ -201,7 +201,7 @@ func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
 			}
 			fmt.Println(resp.Choices[0].Message.Content)
 
-			// the returned output json from our llm
+			// the returned output json from our llms
 			n, err := file.WriteString(resp.Choices[0].Message.Content + "\n")
 			if err != nil {
 				panic(err)

@@ -1,6 +1,6 @@
-package llm
+package llms
 
-// Parse responses returned/provided from/to controller.go
+// Parse responses returned/provided from/to groq_controller.go
 
 import (
 	"bufio"
@@ -9,18 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"server/internal/constants"
-	"server/internal/utils"
-	"strconv"
 	"strings"
-)
-
-type FinishReasonType string
-
-const (
-	StopFinishReason   FinishReasonType = "stop"
-	LengthFinishReason FinishReasonType = "length"
-	FilterFinishReason FinishReasonType = "content_filter"
 )
 
 // CompleteAIChoice - Returned in choices{} JSON object by Groq, when stream is false
@@ -30,8 +19,8 @@ type CompleteAIChoice struct {
 	Message      AIMessage        `json:"message"`
 }
 
-// AIChoice - Returned in choices{} JSON object by Groq, when stream is true
-type AIChoice struct {
+// StreamedAIChoice - Returned in choices{} JSON object by Groq, when stream is true
+type StreamedAIChoice struct {
 	Index        int              `json:"index"`
 	FinishReason FinishReasonType `json:"finish_reason"`
 	Delta        AIMessage        `json:"delta"`
@@ -42,20 +31,14 @@ type CompleteAIResponse struct {
 	Choices []CompleteAIChoice `json:"choices"`
 }
 
-// AIResponse - API Response by Groq, when stream is true
-type AIResponse struct {
-	Choices []AIChoice `json:"choices"`
+// StreamedAIResponse - API Response by Groq, when stream is true
+type StreamedAIResponse struct {
+	Choices []StreamedAIChoice `json:"choices"`
 }
 
-func ReadPrompt() (string, error) {
-	return utils.ReadTextFromFile(promptFile)
-}
+type GroqParser struct{}
 
-func ReadChunkerPrompt() (string, error) {
-	return utils.ReadTextFromFile(chunkerPromptFile)
-}
-
-func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
+func (p *GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	var response CompleteAIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
 		return nil, err
@@ -64,31 +47,9 @@ func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
 	return &response, nil
 }
 
-func BuildChatPrompt(inputText string, similarHadith []constants.HadithEmbeddingResponse) string {
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString("InputText: " + inputText + "\n")
-	promptBuilder.WriteString("<START>\n")
-	for _, hadith := range similarHadith {
-		promptBuilder.WriteString("Hadith: " + strconv.Itoa(hadith.Hadith) + "\n")
-		promptBuilder.WriteString("Page: " + strconv.Itoa(hadith.Page) + "\n")
-		promptBuilder.WriteString("Book: " + hadith.Book + "\n")
-		promptBuilder.WriteString("Score: " + strconv.FormatFloat(float64(hadith.Score), 'f', -1, 32) + "\n")
-		promptBuilder.WriteString("Content: " + hadith.Content + "\n")
-		promptBuilder.WriteString("\n=====\n")
-	}
-	promptBuilder.WriteString("<END>\n")
-	return promptBuilder.String()
-}
-
-func BuildChunkerInputPrompt(inputText string) string {
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString("\n" + inputText)
-	return promptBuilder.String()
-}
-
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
-func ParseStreamedSSE(body io.ReadCloser) <-chan *AIResponse {
-	dataChan := make(chan *AIResponse)
+func (p *GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *StreamedAIResponse {
+	dataChan := make(chan *StreamedAIResponse)
 
 	go func() {
 		defer func() {
@@ -123,7 +84,7 @@ func ParseStreamedSSE(body io.ReadCloser) <-chan *AIResponse {
 						return
 					}
 
-					var response AIResponse
+					var response StreamedAIResponse
 					if err := json.Unmarshal([]byte(payload), &response); err != nil {
 						fmt.Println("unmarshal error:", err)
 						continue

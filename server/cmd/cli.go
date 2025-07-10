@@ -4,14 +4,20 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"server/internal/handlers/ai"
+	"server/internal/llms"
 	"time"
 )
 
 // Bismillah
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	handler, err := handlers.NewHandler()
+	groq, err := llms.NewGroqHandler(llms.ChatModel)
+	if err != nil {
+		panic(err)
+	}
+
+	handler := llms.NewGlobalHandler(groq)
+
 	if err != nil {
 		panic(err)
 	}
@@ -23,7 +29,7 @@ func main() {
 			return
 		}
 
-		dataStream, err := handler.HandleRequest(handler.LlmPrompt, input)
+		dataStream, err := handler.HandleChatRequest(input)
 		if err != nil {
 			fmt.Printf("Error handling request: %v\n", err)
 			return
