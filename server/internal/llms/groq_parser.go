@@ -12,34 +12,47 @@ import (
 	"strings"
 )
 
-// CompleteAIChoice - Returned in choices{} JSON object by Groq, when stream is false
-type CompleteAIChoice struct {
+const (
+	StopFinishReason   FinishReasonType = "stop"
+	LengthFinishReason FinishReasonType = "length"
+	FilterFinishReason FinishReasonType = "content_filter"
+)
+
+type FinishReasonType string
+
+// groqCompleteAIChoice - Returned in choices{} JSON object by Groq, when stream is false
+type groqCompleteAIChoice struct {
 	Index        int              `json:"index"`
 	FinishReason FinishReasonType `json:"finish_reason"`
 	Message      AIMessage        `json:"message"`
 }
 
-// StreamedAIChoice - Returned in choices{} JSON object by Groq, when stream is true
-type StreamedAIChoice struct {
+// groqStreamedAIChoice - Returned in choices{} JSON object by Groq, when stream is true
+type groqStreamedAIChoice struct {
 	Index        int              `json:"index"`
 	FinishReason FinishReasonType `json:"finish_reason"`
 	Delta        AIMessage        `json:"delta"`
 }
 
-// CompleteAIResponse - API Response by Groq, when stream is false
-type CompleteAIResponse struct {
-	Choices []CompleteAIChoice `json:"choices"`
+// GroqCompleteAIResponse - API Response by Groq, when stream is false
+type GroqCompleteAIResponse struct {
+	Choices []groqCompleteAIChoice `json:"choices"`
 }
 
-// StreamedAIResponse - API Response by Groq, when stream is true
-type StreamedAIResponse struct {
-	Choices []StreamedAIChoice `json:"choices"`
+// GroqStreamedAIResponse - API Response by Groq, when stream is true
+type GroqStreamedAIResponse struct {
+	Choices []groqStreamedAIChoice `json:"choices"`
 }
 
 type GroqParser struct{}
 
-func (GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
-	var response CompleteAIResponse
+// ParseResponse - Parse the unstreamed response from the Groq API. ngl i dont like spamming pointers to structs but it's ideal for `nil` ig
+func (GroqParser) ParseResponse(body io.ReadCloser, err error) (*GroqCompleteAIResponse, error) {
+	if err != nil {
+		return nil, err // top 10 worst things ive done
+	}
+
+	var response GroqCompleteAIResponse
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
 		return nil, err
 	}
@@ -48,8 +61,8 @@ func (GroqParser) ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error)
 }
 
 // ParseStreamedSSE - Allow SSE token streaming from the API. <-chan returns a read-only channel
-func (GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *StreamedAIResponse {
-	dataChan := make(chan *StreamedAIResponse)
+func (GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *GroqStreamedAIResponse {
+	dataChan := make(chan *GroqStreamedAIResponse)
 
 	go func() {
 		defer func() {
@@ -84,7 +97,7 @@ func (GroqParser) ParseStreamedSSE(body io.ReadCloser) <-chan *StreamedAIRespons
 						return
 					}
 
-					var response StreamedAIResponse
+					var response GroqStreamedAIResponse
 					if err := json.Unmarshal([]byte(payload), &response); err != nil {
 						fmt.Println("unmarshal error:", err)
 						continue

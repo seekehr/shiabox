@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"server/internal/llms"
@@ -11,13 +12,16 @@ import (
 // Bismillah
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	groq, err := llms.NewGroqHandler(llms.ChatModel)
+	groq, err := llms.NewGroqHandler(llms.ChatModel, llms.ChatPromptFile)
 	if err != nil {
 		panic(err)
 	}
 
 	handler := llms.NewGlobalHandler(groq)
-
+	if err != nil {
+		panic(err)
+	}
+	gemini, err := llms.NewGeminiHandler(llms.ChunkerModel, context.Background(), llms.ChunkerPromptFile)
 	if err != nil {
 		panic(err)
 	}
@@ -29,12 +33,19 @@ func main() {
 			return
 		}
 
-		dataStream, err := handler.HandleChatRequest(input)
+		dataStream, err := handler.HandleGroqChatRequest(input)
 		if err != nil {
 			fmt.Printf("Error handling request: %v\n", err)
 			return
 		}
 
+		resp, err := gemini.SendPrompt("Hey")
+		if err != nil {
+			fmt.Printf("Error handling request: %v\n", err)
+			return
+		}
+		fmt.Println("Model: " + resp.Content)
+		return
 		timer := time.Now()
 		fmt.Print("\nModel Response: ")
 		for data := range dataStream {

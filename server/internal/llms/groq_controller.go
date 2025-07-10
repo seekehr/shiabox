@@ -17,9 +17,9 @@ const (
 	llmUrl = "https://api.groq.com/openai/v1/chat/completions"
 )
 
+// GroqLLM - Groq LLM. What else is there to know </3
 type GroqLLM struct {
 	LLM
-	Model    Model
 	VectorDB *vector.Db
 	Parser   *GroqParser
 }
@@ -37,7 +37,7 @@ type promptRequest struct {
 	Stream   Stream      `json:"stream"`
 }
 
-func NewGroqHandler(model Model) (*GroqLLM, error) {
+func NewGroqHandler(model Model, sysPromptFile PromptFile) (*GroqLLM, error) {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GROQ_API_KEY env var not set")
@@ -48,7 +48,7 @@ func NewGroqHandler(model Model) (*GroqLLM, error) {
 		return nil, err
 	}
 
-	sysPrompt, err := utils.ReadTextFromFile(chatPromptFile)
+	sysPrompt, err := utils.ReadTextFromFile(string(sysPromptFile))
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +57,15 @@ func NewGroqHandler(model Model) (*GroqLLM, error) {
 		LLM: LLM{
 			ApiKey:       apiKey,
 			SystemPrompt: sysPrompt,
+			Model:        model,
 		},
 		VectorDB: vectorDb,
-		Model:    model,
 		Parser:   &GroqParser{},
 	}, nil
 }
 
 func (groq *GroqLLM) SendPrompt(userPrompt string, streaming Stream) (*http.Response, error) {
+	// add system prompt too ofc
 	messages := []AIMessage{
 		{
 			Role:    SystemRole,

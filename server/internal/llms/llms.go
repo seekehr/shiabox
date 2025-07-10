@@ -10,21 +10,18 @@ import (
 )
 
 const (
-	chunkerPromptFile                   = "assets/books_parser_prompt.txt" // we dont want others to read this >.<
-	chatPromptFile                      = "assets/prompt.txt"
-	ParserModel        Model            = "gemma2-9b-it"
-	ChatModel          Model            = "meta-llama/llama-4-scout-17b-16e-instruct"
-	StreamedResponse   Stream           = true
-	FullResponse       Stream           = false
-	UserRole           Role             = "user"
-	AssistantRole      Role             = "assistant"
-	SystemRole         Role             = "system"
-	StopFinishReason   FinishReasonType = "stop"
-	LengthFinishReason FinishReasonType = "length"
-	FilterFinishReason FinishReasonType = "content_filter"
+	ChunkerPromptFile PromptFile = "assets/books_parser_prompt.txt" // we dont want others to read this >.<
+	ChatPromptFile    PromptFile = "assets/prompt.txt"
+	ChunkerModel      Model      = "gemini-2.0-flash-lite"
+	ChatModel         Model      = "meta-llama/llama-4-scout-17b-16e-instruct"
+	StreamedResponse  Stream     = true
+	FullResponse      Stream     = false
+	UserRole          Role       = "user"
+	AssistantRole     Role       = "assistant"
+	SystemRole        Role       = "system"
 )
 
-type FinishReasonType string
+type PromptFile string
 type Stream bool
 type Role string
 type Model string
@@ -32,6 +29,7 @@ type Model string
 type LLM struct {
 	ApiKey       string
 	SystemPrompt string
+	Model        Model
 }
 
 type Handler struct {
@@ -43,8 +41,8 @@ func NewGlobalHandler(groq *GroqLLM) *Handler {
 	return &Handler{Groq: groq}
 }
 
-// HandleChatRequest - Handle the chatting part of shiabox (the main part technically). Streamed response
-func (handler *Handler) HandleChatRequest(prompt string) (<-chan *StreamedAIResponse, error) {
+// HandleGroqChatRequest - Handle the chatting part of shiabox using Groq (the main part technically). Streamed response
+func (handler *Handler) HandleGroqChatRequest(prompt string) (<-chan *GroqStreamedAIResponse, error) {
 	start := time.Now()
 	prompt = strings.TrimSpace(prompt)
 	fmt.Println("\n\n====\nEmbedding prompt...")

@@ -7,23 +7,10 @@ import (
 	"server/internal/llms"
 )
 
-// AIHandler - Handles the entire User -> AI communication.
+// AIHandler - Abstraction used for our routes. Simply uses the embedded llms.Handler
 type AIHandler struct {
 	llms.Handler
 }
-
-// HandleRequest - Handle the entire prompt -> AI process, and return the SSE stream of tokens
-
-// HandleCompletePrompt - For non-streaming uses
-/*func (handler *AIHandler) HandleCompletePrompt(sysPrompt string, prompt string, model groq.Model) (*groq.CompleteAIResponse, error) {
-	resp, err := groq.SendPrompt(sysPrompt, prompt, model, handler.llmApiKey, false)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println("Status code " + strconv.Itoa(resp.StatusCode))
-	defer resp.Body.Close()
-	return groq.ParseResponse(resp.Body)
-}*/
 
 // GetSSEFlusher - Sets the headers to allow server-side events, and gives us the flusher to immediately push data
 func GetSSEFlusher(c echo.Context) (http.Flusher, error) {
