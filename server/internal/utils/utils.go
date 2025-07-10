@@ -91,14 +91,9 @@ func ReadFileBuffered(path string) <-chan string {
 	return dataStream
 }
 
-// ReadFileInChunks - Get a channel to chunkSize portions of your file at a time
-func ReadFileInChunks(path string, chunkSize int) (<-chan string, error) {
+// ReadFileInChunks - Get a channel to chunkSize portions of your file at a time. More memory efficient. Lock can be nil
+func ReadFileInChunks(file *os.File, chunkSize int) (<-chan string, error) {
 	out := make(chan string)
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
 
 	go func() {
 		defer close(out)
@@ -106,6 +101,7 @@ func ReadFileInChunks(path string, chunkSize int) (<-chan string, error) {
 
 		buf := make([]byte, chunkSize)
 		for {
+
 			n, err := file.Read(buf)
 			if n > 0 {
 				out <- string(buf[:n])
@@ -217,6 +213,18 @@ func isMostlyGarbage(s string) bool {
 	}
 
 	return float64(bad)/float64(len(runes)) > 0.4
+}
+
+func ChunkString(input string, chunkSize int) []string {
+	var chunks []string
+	for i := 0; i < len(input); i += chunkSize {
+		end := i + chunkSize
+		if end > len(input) {
+			end = len(input)
+		}
+		chunks = append(chunks, input[i:end])
+	}
+	return chunks
 }
 
 func SaveDataToLogs(data string) {

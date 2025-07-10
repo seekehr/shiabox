@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	llmUrl                 = "https://api.groq.com/openai/v1/chat/completions"
-	parserPromptFile       = "assets/books_parser_prompt.txt"
-	promptFile             = "assets/prompt.txt"
-	ParserModel      Model = "llama-3.3-70b-versatile"
-	ChatModel        Model = "meta-llama/llama-4-scout-17b-16e-instruct"
+	llmUrl                  = "https://api.groq.com/openai/v1/chat/completions"
+	chunkerPromptFile       = "assets/books_parser_prompt.txt"
+	promptFile              = "assets/prompt.txt"
+	ParserModel       Model = "gemma2-9b-it"
+	ChatModel         Model = "meta-llama/llama-4-scout-17b-16e-instruct"
 )
 
 type stream bool

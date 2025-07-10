@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/qdrant/go-client/qdrant"
-	"math"
 	"os"
 	"server/internal/constants"
 	"server/internal/embedding"
@@ -29,8 +28,17 @@ const (
 	MaxParsers           = 30 // 30 rpm is the ratelimit for groq
 	MaxVectors           = 50
 	MaxVectorWorkers     = 10
-	TokensSentPerRequest = 20000 // max completion token limit is 32k so this seems good for now ig
+	TokensSentPerRequest = 11900 // max completion token limit is 32k so this seems good for now ig
+	SleepForSeconds      = 4     // to prevent ratelimit
 )
+
+// ChunkJ*B
+
+type ChunkJob struct {
+	Book  string
+	Lock  *sync.Mutex
+	Chunk string
+}
 
 func main() {
 	buf := bufio.NewScanner(os.Stdin)
@@ -38,7 +46,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	parserPrompt, err := llm.ReadParserPrompt()
+	parserPrompt, err := llm.ReadChunkerPrompt()
 	if err != nil {
 		panic(err)
 	}
@@ -110,96 +118,103 @@ func initBooks() {
 
 // todo: chunkjob
 func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
-	// txt format books to chunk
 	timer := time.Now()
-	txtBooks, err := os.ReadDir(constants.UnparsedBooksDir)
+	files, err := os.ReadDir(constants.UnparsedBooksDir)
 	if err != nil {
 		panic(err)
 	}
 
-	var (
-		wg                 sync.WaitGroup
-		activeWorkersMutex sync.Mutex
-		firstRequest       *time.Time // used for tracking if 60 seconds have passed since the first request
-	)
+	// doesnt even need to be a channel atm but meh
+	jobs := make([]ChunkJob, 0)
 
-	// each file will have its own lock so we don't use another file's lock by accident
-	fileLocks := make(map[string]*sync.Mutex)
-	activeWorkers := 0
-
-	for _, entry := range txtBooks {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".txt") {
+	var booksWg sync.WaitGroup
+	// Go through each book and set up a goroutine to read it and then forward the job to our receiver
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".txt") {
 			continue
 		}
 
-		fileContent, err := utils.ReadFileInChunks(constants.UnparsedBooksDir+entry.Name(), TokensSentPerRequest)
-		if err != nil {
-			panic(err)
-		}
+		booksWg.Add(1)
+		go func(name string) {
+			defer booksWg.Done()
+			// channeled reading for memory efficiency
+			// j*b
 
-		jsonFile, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(entry.Name(), ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			panic(err)
-		}
+			openBook, err := os.Open(constants.UnparsedBooksDir + name)
+			if err != nil {
+				panic(err)
+			}
+			defer openBook.Close()
 
-		fileLocks[jsonFile.Name()] = &sync.Mutex{} // OUR file lock :DDD
-		// we need to convert it to float for values like e.g 5.6 and then round up to account for left-over chunks
-		numberOfRequestsNeeded := int(math.Ceil(float64(len(fileContent)) / float64(TokensSentPerRequest)))
-		for i := 0; i < numberOfRequestsNeeded; i++ {
-			if firstRequest != nil && time.Since(*firstRequest) < time.Second {
-				if activeWorkers > MaxParsers {
-					sleepDuration := time.Second - time.Since(*firstRequest)
-					fmt.Println("Max Parsers reached, waiting for " + sleepDuration.String() + "...")
-					time.Sleep(sleepDuration)
-				}
+			chunks, err := utils.ReadFileInChunks(openBook, TokensSentPerRequest)
+			if err != nil {
+				panic(err)
 			}
 
-			if firstRequest == nil {
-				currentTime := time.Now()
-				firstRequest = &currentTime
-				go func() {
-					time.Sleep(time.Second)
-					firstRequest = nil
-					fmt.Println("Reset first request.")
-				}()
+			// just for logging purposes
+			chunksMadeCount := 0
+			for chunk := range chunks {
+				// new job for each chunk
+				job := ChunkJob{
+					Book:  name,
+					Lock:  &sync.Mutex{},
+					Chunk: "",
+				}
+				job.Chunk += chunk
+				jobs = append(jobs, job)
+
+				chunksMadeCount++
 			}
 
-			activeWorkers += 1
-			wg.Add(1)
-			// communism
-			go func(ourJsonFile *os.File, ourFileChannel <-chan string) {
-				fmt.Println("Started worker number #" + strconv.Itoa(activeWorkers))
-				defer func() {
-					activeWorkersMutex.Lock()
-					activeWorkers--
-					activeWorkersMutex.Unlock()
-					wg.Done()
-				}()
-				for promptTokens := range ourFileChannel {
-					prompt := llm.BuildParserPrompt(promptTokens)
-					resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, llm.ParserModel)
-					if err != nil {
-						panic(err)
-					}
-					ourFileLock, exists := fileLocks[ourJsonFile.Name()]
-					if !exists {
-						panic("bruh wheres OUR file lock for " + ourJsonFile.Name())
-					}
-					ourFileLock.Lock()
-					// o o o o o mg!!! WHAT IF INDEX OUT OF RANGE?!?! well, yolo (technically u live in hereafter too so yea)
-					_, err = ourJsonFile.Write([]byte(resp.Choices[0].Message.Content + "\n"))
-					if err != nil {
-						panic(err)
-					}
-					ourFileLock.Unlock()
-				}
-			}(jsonFile, fileContent)
-		}
-		jsonFile.Close()
+			fmt.Println(strconv.Itoa(chunksMadeCount) + " chunks made of book " + name + " of <=" + strconv.Itoa(TokensSentPerRequest) + " tokens made each.")
+		}(file.Name())
 	}
 
-	wg.Wait()
-	fmt.Println("Chunking books done in: ", time.Since(timer).String())
+	// wait for all books to be parsed first ;-; terrible for memory but wtv
+	booksWg.Wait()
+	fmt.Println("Registered " + strconv.Itoa(len(jobs)) + " jobs for chunking.")
+	if len(jobs) > 200 {
+		fmt.Println("Can only register < 200 jobs in a day.")
+		return
+	}
+
+	for _, job := range jobs {
+		// fun fact: we need to pass a job variable so that our goroutine's job can be copied to the goroutine as usually it would edit whatever value the job variable had
+		go func(job ChunkJob) {
+			job.Lock.Lock()
+			defer job.Lock.Unlock()
+			file, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+
+			prompt := llm.BuildChunkerInputPrompt(job.Chunk)
+			resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, llm.ParserModel)
+			if err != nil {
+				panic(err)
+			}
+
+			if len(resp.Choices) == 0 {
+				fmt.Println("failed to parse book (0 choices): " + job.Book)
+				return
+			}
+			fmt.Println(resp.Choices[0].Message.Content)
+
+			// the returned output json from our llm
+			n, err := file.WriteString(resp.Choices[0].Message.Content + "\n")
+			if err != nil {
+				panic(err)
+			}
+
+			if n != len(job.Chunk) {
+				fmt.Println("failed to write any bytes in book " + job.Book)
+			}
+		}(job)
+		fmt.Println("Set up goroutine for job. Sleeping for 2s...")
+		time.Sleep(SleepForSeconds * time.Second)
+	}
+	fmt.Println("Chunking done in " + time.Since(timer).String() + ".")
 }
 
 func embedBooks() {

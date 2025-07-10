@@ -89,6 +89,7 @@ func (handler *AIHandler) HandleCompletePrompt(sysPrompt string, prompt string, 
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("Status code " + strconv.Itoa(resp.StatusCode))
 	defer resp.Body.Close()
 	return llm.ParseResponse(resp.Body)
 }

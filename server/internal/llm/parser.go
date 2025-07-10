@@ -51,8 +51,8 @@ func ReadPrompt() (string, error) {
 	return utils.ReadTextFromFile(promptFile)
 }
 
-func ReadParserPrompt() (string, error) {
-	return utils.ReadTextFromFile(parserPromptFile)
+func ReadChunkerPrompt() (string, error) {
+	return utils.ReadTextFromFile(chunkerPromptFile)
 }
 
 func ParseResponse(body io.ReadCloser) (*CompleteAIResponse, error) {
@@ -80,7 +80,7 @@ func BuildChatPrompt(inputText string, similarHadith []constants.HadithEmbedding
 	return promptBuilder.String()
 }
 
-func BuildParserPrompt(inputText string) string {
+func BuildChunkerInputPrompt(inputText string) string {
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString("\n" + inputText)
 	return promptBuilder.String()
