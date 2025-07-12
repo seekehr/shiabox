@@ -103,12 +103,16 @@ func ReadFileInChunks(file *os.File, chunkSize int, overlapSize int64) (<-chan s
 		for {
 			n, err := file.ReadAt(buf, offset) // not doing offset - overlapSize here cuz maybe offset is 0. no worries i do it later
 			if n > 0 {
-				out <- string(buf[:n])
+				out <- "<OVERLAP_START>" + string(buf[:n]) // flag that no overlap will be provided for this message
+			} else {
+				fmt.Println("0 bytes read.")
 			}
 
-			if err == io.EOF {
+			if err == io.EOF { // EOF = end of file XDDDD
+				out <- "<END>"
 				break
 			}
+
 			if err != nil {
 				fmt.Printf("error reading chunk: %v\n", err)
 				break

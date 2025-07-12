@@ -27,7 +27,7 @@ const (
 	MaxVectors          = 50
 	MaxVectorWorkers    = 10
 	RatelimitSpeed      = 4     // to prevent ratelimit, in seconds.
-	ChunkSizeCharacters = 59000 // in chars, not tokens. for the llm
+	ChunkSizeCharacters = 57000 // in chars, not tokens. for the llm
 	OverlapCharacters   = 2500  // characters we provide as context to LLM in case the quote is cut-off
 )
 
@@ -137,10 +137,12 @@ func chunkBooks(handler *llms.GeminiLLM) {
 				fmt.Println("Received response from Gemini. Saving...")
 				job.Lock.Lock()
 				defer job.Lock.Unlock()
-				err = os.WriteFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), []byte(resp.Content), 0644)
+				f, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 				if err != nil {
 					panic(err)
 				}
+				defer f.Close()
+				f.Write([]byte(resp.Content))
 				fmt.Println("Written response to file for job.")
 			}(job)
 			time.Sleep(time.Duration(RatelimitSpeed) * time.Second) // sleep to avoid ratelimit

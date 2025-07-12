@@ -10,7 +10,7 @@ You are a text-to-JSON conversion utility. Your sole function is to receive raw 
 5.  **Handle Truncation:** If a hadith is clearly cut off at the end (like ending mid-word), include the incomplete text as-is.
 6. **Overlap Handling:** The first 2500 characters of the input may be overlapping text from a previous chunk. ALSO ignore it if it starts with <NO_OVERLAP> If the first hadith starts mid-sentence or mid-word (i.e., clearly cut off), you may include preceding content from the overlap only as needed to reconstruct the beginning of that hadith. Otherwise, ignore the overlapping part entirely.
 7. Don't add a curly brace at the start UNLESS the first 2500 characters start with <NO_OVERLAP>
-8. Add a } curly brace if the characters end with <END>.
+8. Add a } curly brace at the end if the characters end with <END>.
 
 **STRICT OUTPUT SCHEMA:**
 Your entire output must be a single, raw JSON array. Each object in the array must follow this exact format:
