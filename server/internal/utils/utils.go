@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"unicode"
 )
@@ -141,7 +140,7 @@ func SavePDFAsTxt(pdfPath string, txtPath string) error {
 	dataStream := ReadFileBuffered(txtPath)
 	for line := range dataStream {
 		// technically this ensures that we receive new content before appending but theres still issues OK IDK ALLAHU AALAM
-		transformLine := CleanNoise(line) // remove our arabic from the line
+		transformLine := CleanText(line) // remove our arabic from the line
 		// this is used because we dont want 2 consecutive empty lines; only one for formatting purpose
 		if transformLine == "" {
 			if previousLineEmpty == true {
@@ -167,52 +166,91 @@ func SavePDFAsTxt(pdfPath string, txtPath string) error {
 	return os.Rename(tempPath, txtPath)
 }
 
-// CleanNoise - removes garbage characters thanks to the pdf conversion process. Sinful ChatGPT generated but idc about file encodings ;-;
-func CleanNoise(input string) string {
-	// Remove repeating glyph patterns
-	garbagePattern := regexp.MustCompile(`(?:[GHELZ%_7qdCI:$"(){}]{2,}\s*){2,}`)
-	input = garbagePattern.ReplaceAllString(input, "")
-
-	// empty string if the line is mostly garbage
-	if isMostlyGarbage(input) {
-		return ""
+// CleanText removes garbage lines from a given string. AI-GENERATED FUNCTION SO DONT EXPECT ME TO MAINTAIN IT >:(
+func CleanText(text string) string {
+	var cleanedLines []string
+	// commonly appeared bad chars in the prompt i gave to gemini i guess
+	badChars := map[rune]bool{
+		'G': true, 'H': true, 'E': true, 'L': true, 'Z': true, '%': true,
+		'_': true, '7': true, 'q': true, 'd': true, 'C': true, 'I': true,
+		':': true, '$': true, '"': true, '(': true, ')': true, '{': true,
+		'}': true, '~': true, 'Y': true, '#': true, '!': true,
 	}
 
-	// Remove non-printable characters
-	var builder strings.Builder
-	for _, r := range input {
-		if unicode.IsPrint(r) && r != '\uFFFD' {
-			builder.WriteRune(r)
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" {
+			continue
 		}
+
+		// keep chapter lines i guess as theyre used by LLM for chunking
+		if isPurelyNumeric(trimmedLine) {
+			cleanedLines = append(cleanedLines, line)
+			continue
+		}
+
+		// keep numbered paragraphs like "14. And..."
+		parts := strings.SplitN(trimmedLine, ".", 2)
+		if len(parts) > 1 && isPurelyNumeric(parts[0]) {
+			cleanedLines = append(cleanedLines, line)
+			continue
+		}
+
+		//i dont like runes.
+		runes := []rune(trimmedLine)
+		if len(runes) == 0 {
+			continue
+		}
+
+		// stores how many characters are L mans so we can remove them
+		badCount := 0
+		alphaCount := 0
+		hasSpace := false
+		for _, r := range runes {
+			if _, isBad := badChars[r]; isBad {
+				badCount++
+			}
+			if unicode.IsLetter(r) {
+				alphaCount++
+			}
+			if unicode.IsSpace(r) {
+				hasSpace = true
+			}
+		}
+
+		//rRemove very short lines with less numbers
+		if len(runes) < 10 && hasSpace && alphaCount < 4 {
+			continue
+		}
+
+		// high ratio of bad characters
+		if float64(badCount)/float64(len(runes)) > 0.4 {
+			continue
+		}
+
+		// low ratio of letters (idk why this exists ok i didnt tell it to add this)
+		if len(runes) > 1 && float64(alphaCount)/float64(len(runes)) < 0.5 {
+			continue
+		}
+
+		cleanedLines = append(cleanedLines, line)
 	}
 
-	// Normalize spacing
-	cleaned := strings.Join(strings.Fields(builder.String()), " ")
-
-	// Final short + junk line check
-	if len([]rune(cleaned)) < 15 && isMostlyGarbage(cleaned) {
-		return ""
-	}
-
-	return cleaned
+	return strings.Join(cleanedLines, "\n")
 }
 
-// isMostlyGarbage checks ratio of junk characters
-func isMostlyGarbage(s string) bool {
-	runes := []rune(s)
-	if len(runes) == 0 {
-		return true
+// isPurelyNumeric Check if a string only has numbers (used by CleanText)
+func isPurelyNumeric(s string) bool {
+	if s == "" {
+		return false
 	}
-
-	badChars := "GHELZ%_7}{~\"$()Y#qdCI:"
-	bad := 0
-	for _, r := range runes {
-		if strings.ContainsRune(badChars, r) {
-			bad++
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
 		}
 	}
-
-	return float64(bad)/float64(len(runes)) > 0.4
+	return true
 }
 
 func ChunkString(input string, chunkSize int) []string {

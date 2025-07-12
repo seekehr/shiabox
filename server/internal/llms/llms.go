@@ -12,7 +12,7 @@ import (
 const (
 	ChunkerPromptFile PromptFile = "assets/books_parser_prompt.txt" // we dont want others to read this >.<
 	ChatPromptFile    PromptFile = "assets/prompt.txt"
-	ChunkerModel      Model      = "gemini-2.0-flash-lite"
+	ChunkerModel      Model      = "gemini-2.5-flash-lite-preview-06-17"
 	ChatModel         Model      = "meta-llama/llama-4-scout-17b-16e-instruct"
 	StreamedResponse  Stream     = true
 	FullResponse      Stream     = false
@@ -33,12 +33,13 @@ type LLM struct {
 }
 
 type Handler struct {
-	Groq *GroqLLM
+	Groq   *GroqLLM
+	Gemini *GeminiLLM
 }
 
 // NewGlobalHandler - Create a new Handler to easily handle common use cases with the LLMs
-func NewGlobalHandler(groq *GroqLLM) *Handler {
-	return &Handler{Groq: groq}
+func NewGlobalHandler(groq *GroqLLM, gemini *GeminiLLM) *Handler {
+	return &Handler{Groq: groq, Gemini: gemini}
 }
 
 // HandleGroqChatRequest - Handle the chatting part of shiabox using Groq (the main part technically). Streamed response

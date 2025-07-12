@@ -1,6 +1,5 @@
 package main
 
-/*
 import (
 	"bufio"
 	"context"
@@ -10,8 +9,7 @@ import (
 	"os"
 	"server/internal/constants"
 	"server/internal/embedding"
-	handlers "server/internal/handlers/ai"
-	"server/internal/llms/groq"
+	"server/internal/llms"
 	"server/internal/utils"
 	"server/internal/vector"
 	"strconv"
@@ -21,16 +19,14 @@ import (
 )
 
 const (
-	FlagInitBooks        = 0
-	FlagEmbedBooks       = 1
-	FlagInitVectors      = 2
-	FlagInitBoth         = 3
-	FlagInitAll          = 4
-	MaxParsers           = 30 // 30 rpm is the ratelimit for groq
-	MaxVectors           = 50
-	MaxVectorWorkers     = 10
-	TokensSentPerRequest = 11900 // max completion token limit is 32k so this seems good for now ig
-	SleepForSeconds      = 4     // to prevent ratelimit
+	FlagInitBooks    = 0
+	FlagEmbedBooks   = 1
+	FlagInitVectors  = 2
+	FlagInitBoth     = 3
+	FlagInitAll      = 4
+	MaxVectors       = 50
+	MaxVectorWorkers = 10
+	SleepForSeconds  = 2 // to prevent ratelimit
 )
 
 // ChunkJ*B
@@ -48,12 +44,7 @@ func main() {
 		panic(err)
 	}
 
-	parserPrompt, err := groq.ReadChunkerPrompt()
-	if err != nil {
-		panic(err)
-	}
-
-	handler, err := handlers.NewHandler()
+	gemini, err := llms.NewGeminiHandler(llms.ChunkerModel, context.Background(), llms.ChunkerPromptFile)
 	if err != nil {
 		panic(err)
 	}
@@ -67,8 +58,8 @@ func main() {
 
 		timeStart := time.Now()
 		if flagged == FlagInitBooks {
-			initBooks()
-			chunkBooks(parserPrompt, handler)
+			pdfToTxtBooks()
+			chunkBooks(gemini)
 		} else if flagged == FlagEmbedBooks {
 			fmt.Println("Generating embeddings...")
 			embedBooks()
@@ -86,7 +77,8 @@ func main() {
 
 }
 
-func initBooks() {
+// initBooks - Convert PDF books to .txt
+func pdfToTxtBooks() {
 	var parseWg sync.WaitGroup // because chunking relies on the .txt books so parsing them must be done first
 
 	fmt.Println("MAKE SURE YOU HAVE PDFTOTEXT BY POPPLER'S UTILS INSTALLED.")
@@ -118,105 +110,44 @@ func initBooks() {
 	fmt.Println("Converting books to txt done in: ", time.Since(timer).String())
 }
 
-// todo: chunkjob
-func chunkBooks(parserPrompt string, handler *handlers.AIHandler) {
+// chunkBooks - Use an LLM to convert .txt books into chunked JSON that can easily be fed into the vector db
+func chunkBooks(handler *llms.GeminiLLM) {
 	timer := time.Now()
 	files, err := os.ReadDir(constants.UnparsedBooksDir)
 	if err != nil {
 		panic(err)
 	}
 
-	// doesnt even need to be a channel atm but meh
-	jobs := make([]ChunkJob, 0)
-
-	var booksWg sync.WaitGroup
+	var wg sync.WaitGroup
 	// Go through each book and set up a goroutine to read it and then forward the job to our receiver
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".txt") {
 			continue
 		}
 
-		booksWg.Add(1)
-		go func(name string) {
-			defer booksWg.Done()
-			// channeled reading for memory efficiency
-			// j*b
-
-			openBook, err := os.Open(constants.UnparsedBooksDir + name)
-			if err != nil {
-				panic(err)
-			}
-			defer openBook.Close()
-
-			chunks, err := utils.ReadFileInChunks(openBook, TokensSentPerRequest)
+		wg.Add(1)
+		go func(fileName string) {
+			defer wg.Done()
+			contents, err := os.ReadFile(constants.UnparsedBooksDir + fileName)
 			if err != nil {
 				panic(err)
 			}
 
-			// just for logging purposes
-			chunksMadeCount := 0
-			for chunk := range chunks {
-				// new job for each chunk
-				job := ChunkJob{
-					Book:  name,
-					Lock:  &sync.Mutex{},
-					Chunk: "",
-				}
-				job.Chunk += chunk
-				jobs = append(jobs, job)
-
-				chunksMadeCount++
+			fmt.Println("Sent request to Gemini. Awaiting response...")
+			resp, err := handler.SendPrompt(string(contents))
+			if err != nil {
+				panic(err)
 			}
-
-			fmt.Println(strconv.Itoa(chunksMadeCount) + " chunks made of book " + name + " of <=" + strconv.Itoa(TokensSentPerRequest) + " tokens made each.")
+			fmt.Println("Stop reason: " + string(resp.FinishReason))
+			fmt.Println("Received response from Gemini. Saving...")
+			err = os.WriteFile(constants.ParsedBooksDir+strings.Replace(fileName, ".txt", ".json", 1), []byte(resp.Content), 0644)
+			if err != nil {
+				panic(err)
+			}
 		}(file.Name())
 	}
-
-	// wait for all books to be parsed first ;-; terrible for memory but wtv
-	booksWg.Wait()
-	fmt.Println("Registered " + strconv.Itoa(len(jobs)) + " jobs for chunking.")
-	if len(jobs) > 200 {
-		fmt.Println("Can only register < 200 jobs in a day.")
-		return
-	}
-
-	for _, job := range jobs {
-		// fun fact: we need to pass a job variable so that our goroutine's job can be copied to the goroutine as usually it would edit whatever value the job variable had
-		go func(job ChunkJob) {
-			job.Lock.Lock()
-			defer job.Lock.Unlock()
-			file, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-
-			prompt := groq.BuildChunkerInputPrompt(job.Chunk)
-			resp, err := handler.HandleCompletePrompt(parserPrompt, prompt, groq.ParserModel)
-			if err != nil {
-				panic(err)
-			}
-
-			if len(resp.Choices) == 0 {
-				fmt.Println("failed to parse book (0 choices): " + job.Book)
-				return
-			}
-			fmt.Println(resp.Choices[0].Message.Content)
-
-			// the returned output json from our llms
-			n, err := file.WriteString(resp.Choices[0].Message.Content + "\n")
-			if err != nil {
-				panic(err)
-			}
-
-			if n != len(job.Chunk) {
-				fmt.Println("failed to write any bytes in book " + job.Book)
-			}
-		}(job)
-		fmt.Println("Set up goroutine for job. Sleeping for 2s...")
-		time.Sleep(SleepForSeconds * time.Second)
-	}
-	fmt.Println("Chunking done in " + time.Since(timer).String() + ".")
+	wg.Wait()
+	fmt.Println("Chunking done in: ", time.Since(timer).String())
 }
 
 func embedBooks() {
@@ -259,7 +190,8 @@ func initVectors(vectorDb *vector.Db) {
 		because the total size is not known. if the size is exceeded, then wg.Wait() will never be finished as the sender goroutines
 		will block due to lack of space in the channel. it's also slower to send everything first and then process, than it is to
 		process while data is being sent.
-*/ /*
+	*/
+
 	doneWg.Add(1)
 	go func() {
 		defer doneWg.Done()
@@ -285,6 +217,7 @@ func initVectors(vectorDb *vector.Db) {
 		wg.Add(1)
 		go func(fileName string) {
 			defer wg.Done()
+			// read all vectors from the embedded book
 			embedData, err := embedding.ReadEmbeddedBook(constants.EmbeddingsDir + fileName)
 			if err != nil {
 				panic(err)
@@ -315,4 +248,3 @@ func initVectors(vectorDb *vector.Db) {
 
 	fmt.Printf("Vector count: %d\n", resp.Result.Count)
 }
-*/

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"server/internal/llms"
@@ -21,10 +20,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	gemini, err := llms.NewGeminiHandler(llms.ChunkerModel, context.Background(), llms.ChunkerPromptFile)
-	if err != nil {
-		panic(err)
-	}
 	for {
 		fmt.Print("Enter your prompt: ")
 		input, err := reader.ReadString('\n')
@@ -39,13 +34,6 @@ func main() {
 			return
 		}
 
-		resp, err := gemini.SendPrompt("Hey")
-		if err != nil {
-			fmt.Printf("Error handling request: %v\n", err)
-			return
-		}
-		fmt.Println("Model: " + resp.Content)
-		return
 		timer := time.Now()
 		fmt.Print("\nModel Response: ")
 		for data := range dataStream {
