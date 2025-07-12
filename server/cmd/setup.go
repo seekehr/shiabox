@@ -19,14 +19,16 @@ import (
 )
 
 const (
-	FlagInitBooks    = 0
-	FlagEmbedBooks   = 1
-	FlagInitVectors  = 2
-	FlagInitBoth     = 3
-	FlagInitAll      = 4
-	MaxVectors       = 50
-	MaxVectorWorkers = 10
-	SleepForSeconds  = 2 // to prevent ratelimit
+	FlagInitBooks       = 0
+	FlagEmbedBooks      = 1
+	FlagInitVectors     = 2
+	FlagInitBoth        = 3
+	FlagInitAll         = 4
+	MaxVectors          = 50
+	MaxVectorWorkers    = 10
+	RatelimitSpeed      = 4     // to prevent ratelimit, in seconds.
+	ChunkSizeCharacters = 59000 // in chars, not tokens. for the llm
+	OverlapCharacters   = 2500  // characters we provide as context to LLM in case the quote is cut-off
 )
 
 // ChunkJ*B
@@ -118,35 +120,59 @@ func chunkBooks(handler *llms.GeminiLLM) {
 		panic(err)
 	}
 
-	var wg sync.WaitGroup
-	// Go through each book and set up a goroutine to read it and then forward the job to our receiver
+	var jobsWg sync.WaitGroup
+
+	jobsChan := make(chan *ChunkJob)
+	go func() {
+		for job := range jobsChan {
+			jobsWg.Add(1)
+			go func(job *ChunkJob) {
+				defer jobsWg.Done()
+				fmt.Println("Sending request to Gemini of length " + strconv.Itoa(len(job.Chunk)) + "...")
+				resp, err := handler.SendPrompt(job.Chunk)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Stop reason: " + string(resp.FinishReason))
+				fmt.Println("Received response from Gemini. Saving...")
+				job.Lock.Lock()
+				defer job.Lock.Unlock()
+				err = os.WriteFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), []byte(resp.Content), 0644)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Written response to file for job.")
+			}(job)
+			time.Sleep(time.Duration(RatelimitSpeed) * time.Second) // sleep to avoid ratelimit
+		}
+	}()
+
+	// Go through each book and then forward the necessary chunk to our receiver
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".txt") {
 			continue
 		}
 
-		wg.Add(1)
-		go func(fileName string) {
-			defer wg.Done()
-			contents, err := os.ReadFile(constants.UnparsedBooksDir + fileName)
-			if err != nil {
-				panic(err)
-			}
+		openedFile, err := os.Open(constants.UnparsedBooksDir + file.Name())
+		if err != nil {
+			panic(err)
+		}
 
-			fmt.Println("Sent request to Gemini. Awaiting response...")
-			resp, err := handler.SendPrompt(string(contents))
-			if err != nil {
-				panic(err)
+		data, err := utils.ReadFileInChunks(openedFile, ChunkSizeCharacters, OverlapCharacters)
+		if err != nil {
+			panic(err)
+		}
+		lock := &sync.Mutex{}             // pass pointer to the same lock for each file
+		for receivedChunk := range data { // send all jobs at once; the rate-limiting happens inside the jobs themselves
+			jobsChan <- &ChunkJob{
+				Book:  file.Name(),
+				Chunk: receivedChunk,
+				Lock:  lock,
 			}
-			fmt.Println("Stop reason: " + string(resp.FinishReason))
-			fmt.Println("Received response from Gemini. Saving...")
-			err = os.WriteFile(constants.ParsedBooksDir+strings.Replace(fileName, ".txt", ".json", 1), []byte(resp.Content), 0644)
-			if err != nil {
-				panic(err)
-			}
-		}(file.Name())
+		}
 	}
-	wg.Wait()
+
+	jobsWg.Wait() // wait for all jobs to be finished
 	fmt.Println("Chunking done in: ", time.Since(timer).String())
 }
 

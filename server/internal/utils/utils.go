@@ -90,8 +90,8 @@ func ReadFileBuffered(path string) <-chan string {
 	return dataStream
 }
 
-// ReadFileInChunks - Get a channel to chunkSize portions of your file at a time. More memory efficient. Lock can be nil
-func ReadFileInChunks(file *os.File, chunkSize int) (<-chan string, error) {
+// ReadFileInChunks - Get a channel to chunkSize portions of your file at a time. More memory efficient + overlap support to avoid cut-offs.
+func ReadFileInChunks(file *os.File, chunkSize int, overlapSize int64) (<-chan string, error) {
 	out := make(chan string)
 
 	go func() {
@@ -99,12 +99,13 @@ func ReadFileInChunks(file *os.File, chunkSize int) (<-chan string, error) {
 		defer file.Close()
 
 		buf := make([]byte, chunkSize)
+		offset := int64(0)
 		for {
-
-			n, err := file.Read(buf)
+			n, err := file.ReadAt(buf, offset) // not doing offset - overlapSize here cuz maybe offset is 0. no worries i do it later
 			if n > 0 {
 				out <- string(buf[:n])
 			}
+
 			if err == io.EOF {
 				break
 			}
@@ -112,6 +113,8 @@ func ReadFileInChunks(file *os.File, chunkSize int) (<-chan string, error) {
 				fmt.Printf("error reading chunk: %v\n", err)
 				break
 			}
+			offset += int64(chunkSize)
+			offset -= overlapSize // so it starts reading from overlapSize earlier.
 		}
 	}()
 

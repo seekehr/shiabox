@@ -12,13 +12,14 @@ import (
 const (
 	ChunkerPromptFile PromptFile = "assets/books_parser_prompt.txt" // we dont want others to read this >.<
 	ChatPromptFile    PromptFile = "assets/prompt.txt"
-	ChunkerModel      Model      = "gemini-2.5-flash-lite-preview-06-17"
-	ChatModel         Model      = "meta-llama/llama-4-scout-17b-16e-instruct"
-	StreamedResponse  Stream     = true
-	FullResponse      Stream     = false
-	UserRole          Role       = "user"
-	AssistantRole     Role       = "assistant"
-	SystemRole        Role       = "system"
+	// ChunkerModel - output token limit of 65k so account for those
+	ChunkerModel     Model  = "gemini-2.5-flash-lite-preview-06-17"
+	ChatModel        Model  = "meta-llama/llama-4-scout-17b-16e-instruct"
+	StreamedResponse Stream = true
+	FullResponse     Stream = false
+	UserRole         Role   = "user"
+	AssistantRole    Role   = "assistant"
+	SystemRole       Role   = "system"
 )
 
 type PromptFile string
