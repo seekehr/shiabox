@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/qdrant/go-client/qdrant"
+	"io"
 	"os"
+	"regexp"
 	"server/internal/constants"
 	"server/internal/embedding"
 	"server/internal/llms"
@@ -19,16 +21,17 @@ import (
 )
 
 const (
-	FlagInitBooks       = 0
-	FlagEmbedBooks      = 1
-	FlagInitVectors     = 2
-	FlagInitBoth        = 3
-	FlagInitAll         = 4
-	MaxVectors          = 50
-	MaxVectorWorkers    = 10
-	RatelimitSpeed      = 4     // to prevent ratelimit, in seconds.
-	ChunkSizeCharacters = 57000 // in chars, not tokens. for the llm
-	OverlapCharacters   = 2500  // characters we provide as context to LLM in case the quote is cut-off
+	FlagInitBooks        = 0
+	FlagPostprocessBooks = 1
+	FlagEmbedBooks       = 2
+	FlagInitVectors      = 3
+	FlagInitBoth         = 4
+	FlagInitAll          = 5
+	MaxVectors           = 50
+	MaxVectorWorkers     = 10
+	RatelimitSpeed       = 4     // to prevent ratelimit, in seconds.
+	ChunkSizeCharacters  = 57000 // in chars, not tokens. for the llm
+	OverlapCharacters    = 2500  // characters we provide as context to LLM in case the quote is cut-off
 )
 
 // ChunkJ*B
@@ -62,6 +65,8 @@ func main() {
 		if flagged == FlagInitBooks {
 			pdfToTxtBooks()
 			chunkBooks(gemini)
+		} else if flagged == FlagPostprocessBooks {
+			postprocessBooks()
 		} else if flagged == FlagEmbedBooks {
 			fmt.Println("Generating embeddings...")
 			embedBooks()
@@ -164,8 +169,9 @@ func chunkBooks(handler *llms.GeminiLLM) {
 		if err != nil {
 			panic(err)
 		}
-		lock := &sync.Mutex{}             // pass pointer to the same lock for each file
-		for receivedChunk := range data { // send all jobs at once; the rate-limiting happens inside the jobs themselves
+		lock := &sync.Mutex{}                                                                  // pass pointer to the same lock for each file
+		os.Remove(constants.ParsedBooksDir + strings.Replace(file.Name(), ".txt", ".json", 1)) // remove the parsed file if it exists so we can overwrite it
+		for receivedChunk := range data {                                                      // send all jobs at once; the rate-limiting happens inside the jobs themselves
 			jobsChan <- &ChunkJob{
 				Book:  file.Name(),
 				Chunk: receivedChunk,
@@ -176,6 +182,62 @@ func chunkBooks(handler *llms.GeminiLLM) {
 
 	jobsWg.Wait() // wait for all jobs to be finished
 	fmt.Println("Chunking done in: ", time.Since(timer).String())
+}
+
+// postprocessBooks - Remove junk from the books so they can have proper JSON syntax. This is needed due to LLM stupidity
+func postprocessBooks() {
+	timer := time.Now()
+	files, err := os.ReadDir(constants.ParsedBooksDir)
+	if err != nil {
+		panic(err)
+	}
+
+	var wg sync.WaitGroup
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// we have to read file for contents so we can preprocess them, then overwrite the contents
+			f, err := os.OpenFile(constants.ParsedBooksDir+file.Name(), os.O_RDWR, 0644)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+
+			// WHO CARES ABOUT MEMORY?!?!?!?! In all seriousness this will be bad if the server has lots of books and like <1G ram so maybe run on local machine before pushing to AWS or smth
+			contents, err := io.ReadAll(f)
+			if err != nil {
+				panic(err)
+			}
+
+			// Clean the ][ because of LLM
+			regex := regexp.MustCompile(`}\s*\]\s*\[\s*{`)
+			cleaned := regex.ReplaceAll(contents, []byte("},{"))
+
+			// NUKE FILE
+			err = f.Truncate(0)
+			if err != nil {
+				panic(err)
+			}
+
+			// set file cursor to 0 so we can write from beginning
+			_, err = f.Seek(0, 0)
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = f.Write(cleaned)
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
+	wg.Wait()
+	fmt.Println("Postprocessing books done in: ", time.Since(timer).String())
 }
 
 func embedBooks() {
