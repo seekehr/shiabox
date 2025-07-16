@@ -8,12 +8,14 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"server/internal/constants"
 	"server/internal/embedding"
 	"server/internal/llms"
 	"server/internal/utils"
 	"server/internal/vector"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,19 +29,18 @@ const (
 	FlagInitVectors      = 3
 	FlagInitBoth         = 4
 	FlagInitAll          = 5
-	MaxVectors           = 50
-	MaxVectorWorkers     = 10
-	RatelimitSpeed       = 4     // to prevent ratelimit, in seconds.
-	ChunkSizeCharacters  = 57000 // in chars, not tokens. for the llm
-	OverlapCharacters    = 2500  // characters we provide as context to LLM in case the quote is cut-off
+
+	MaxVectors          = 50
+	MaxVectorWorkers    = 10
+	RatelimitSpeed      = 65    // to prevent ratelimit, in seconds. we use this value to sleep for the mins provided
+	MaxRequestsPerMin   = 15    // max requests per minute FOR RATELIMIT.
+	ChunkSizeCharacters = 50000 // in chars, not tokens. for the llm
+	OverlapCharacters   = 2500  // characters we provide as context to LLM in case the quote is cut-off
 )
 
-// ChunkJ*B
-
-type ChunkJob struct {
-	Book  string
-	Lock  *sync.Mutex
-	Chunk string
+type FinishedChunkJob struct {
+	Index    int // for order
+	Response string
 }
 
 func main() {
@@ -65,6 +66,7 @@ func main() {
 		if flagged == FlagInitBooks {
 			pdfToTxtBooks()
 			chunkBooks(gemini)
+			postprocessBooks()
 		} else if flagged == FlagPostprocessBooks {
 			postprocessBooks()
 		} else if flagged == FlagEmbedBooks {
@@ -112,12 +114,11 @@ func pdfToTxtBooks() {
 			}
 		}(name)
 	}
-
 	parseWg.Wait()
 	fmt.Println("Converting books to txt done in: ", time.Since(timer).String())
 }
 
-// chunkBooks - Use an LLM to convert .txt books into chunked JSON that can easily be fed into the vector db
+// chunkBooks - Use an LLM to convert .txt books into chunked JSON that can easily be fed into the vector db. Data is sorted for books, each book is done in order and each chunk is given to a goroutine to handle.
 func chunkBooks(handler *llms.GeminiLLM) {
 	timer := time.Now()
 	files, err := os.ReadDir(constants.UnparsedBooksDir)
@@ -125,36 +126,74 @@ func chunkBooks(handler *llms.GeminiLLM) {
 		panic(err)
 	}
 
-	var jobsWg sync.WaitGroup
+	processBook := func(book *os.File) {
+		data, err := utils.ReadFileInChunks(book, ChunkSizeCharacters, OverlapCharacters)
+		if err != nil {
+			panic(err)
+		}
 
-	jobsChan := make(chan *ChunkJob)
-	go func() {
-		for job := range jobsChan {
-			jobsWg.Add(1)
-			go func(job *ChunkJob) {
-				defer jobsWg.Done()
-				fmt.Println("Sending request to Gemini of length " + strconv.Itoa(len(job.Chunk)) + "...")
-				resp, err := handler.SendPrompt(job.Chunk)
+		// if os.Open is ran with the full path of the book, the book.Name() will be fool path so we only get basename
+		name := filepath.Base(book.Name())
+		parseFile, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(name, ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+		defer parseFile.Close()
+
+		fmt.Println("Sending requests to gemini for book " + name + ".")
+
+		finishedJobs := make([]*FinishedChunkJob, 0)
+		finishedJobsLock := &sync.Mutex{}
+		index := 0           // for order
+		requestsCounter := 0 // cuz we don't wanna reset index so cant use that; this is for rate-limits
+		var wg sync.WaitGroup
+		for chunk := range data {
+			if requestsCounter >= MaxRequestsPerMin {
+				time.Sleep(time.Second * RatelimitSpeed) // prevent rate limit
+				fmt.Println("Slept for " + strconv.Itoa(RatelimitSpeed) + " seconds to prevent rate limit.")
+				requestsCounter = 0
+			}
+
+			wg.Add(1)
+			// send request to prompt
+			go func(chunk string, index int) {
+				defer wg.Done()
+				fmt.Println("Spun up goroutine for chunk " + strconv.Itoa(index) + ".")
+				resp, err := handler.SendPrompt(chunk)
 				if err != nil {
 					panic(err)
 				}
 				fmt.Println("Stop reason: " + string(resp.FinishReason))
-				fmt.Println("Received response from Gemini. Saving...")
-				job.Lock.Lock()
-				defer job.Lock.Unlock()
-				f, err := os.OpenFile(constants.ParsedBooksDir+strings.Replace(job.Book, ".txt", ".json", 1), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-				if err != nil {
-					panic(err)
-				}
-				defer f.Close()
-				f.Write([]byte(resp.Content))
-				fmt.Println("Written response to file for job.")
-			}(job)
-			time.Sleep(time.Duration(RatelimitSpeed) * time.Second) // sleep to avoid ratelimit
+				finishedJobsLock.Lock()
+				finishedJobs = append(finishedJobs, &FinishedChunkJob{
+					Index:    index,
+					Response: resp.Content,
+				})
+				finishedJobsLock.Unlock()
+				fmt.Println("Received response from Gemini for chunk " + strconv.Itoa(index) + ".")
+			}(chunk, index) // fun fact: goroutines can access variables in the function scope that they are declared in.
+			// we give them these params so they can copy them (to their reserved memory/scope) and it doesnt cause reference issue (i.e it uses index 2 because it points to index inside the loop instead of its index 0)
+			index++
+			requestsCounter++
 		}
-	}()
 
-	// Go through each book and then forward the necessary chunk to our receiver
+		wg.Wait()
+		fmt.Println("Sorting chunks...")
+		// sort from descending order
+		sort.Slice(finishedJobs, func(i, j int) bool {
+			return finishedJobs[i].Index < finishedJobs[j].Index
+		})
+
+		var content strings.Builder
+		for _, job := range finishedJobs {
+			content.WriteString(job.Response)
+		}
+
+		parseFile.Write([]byte(content.String()))
+		fmt.Println("Written " + strconv.Itoa(len(content.String())) + " bytes to " + parseFile.Name() + ".")
+		fmt.Println("Finished processing LLM response for " + name + ".")
+	}
+
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".txt") {
 			continue
@@ -164,23 +203,10 @@ func chunkBooks(handler *llms.GeminiLLM) {
 		if err != nil {
 			panic(err)
 		}
-
-		data, err := utils.ReadFileInChunks(openedFile, ChunkSizeCharacters, OverlapCharacters)
-		if err != nil {
-			panic(err)
-		}
-		lock := &sync.Mutex{}                                                                  // pass pointer to the same lock for each file
 		os.Remove(constants.ParsedBooksDir + strings.Replace(file.Name(), ".txt", ".json", 1)) // remove the parsed file if it exists so we can overwrite it
-		for receivedChunk := range data {                                                      // send all jobs at once; the rate-limiting happens inside the jobs themselves
-			jobsChan <- &ChunkJob{
-				Book:  file.Name(),
-				Chunk: receivedChunk,
-				Lock:  lock,
-			}
-		}
+		processBook(openedFile)
 	}
 
-	jobsWg.Wait() // wait for all jobs to be finished
 	fmt.Println("Chunking done in: ", time.Since(timer).String())
 }
 

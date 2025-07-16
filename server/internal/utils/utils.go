@@ -101,11 +101,11 @@ func ReadFileInChunks(file *os.File, chunkSize int, overlapSize int64) (<-chan s
 		buf := make([]byte, chunkSize)
 		offset := int64(0)
 		for {
-			n, err := file.ReadAt(buf, offset) // not doing offset - overlapSize here cuz maybe offset is 0. no worries i do it later
+			n, err := file.ReadAt(buf, offset) // not doing offset - overlapSize here cuz it could be a negative value which we would have to normalise. no worries i do it later
 			if n > 0 {
-				out <- "<OVERLAP_START>" + string(buf[:n]) // flag that no overlap will be provided for this message
+				out <- string(buf[:n])
 			} else {
-				fmt.Println("0 bytes read.")
+				fmt.Println("0 bytes read!!!")
 			}
 
 			if err == io.EOF { // EOF = end of file XDDDD
@@ -117,6 +117,7 @@ func ReadFileInChunks(file *os.File, chunkSize int, overlapSize int64) (<-chan s
 				fmt.Printf("error reading chunk: %v\n", err)
 				break
 			}
+
 			offset += int64(chunkSize)
 			offset -= overlapSize // so it starts reading from overlapSize earlier.
 		}
