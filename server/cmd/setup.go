@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -239,10 +240,49 @@ func postprocessBooks() {
 			if err != nil {
 				panic(err)
 			}
+			// scanner to allow reading line by line.
+			scanner := bufio.NewScanner(bytes.NewReader(contents))
+			var lines []string
+			for scanner.Scan() {
+				lines = append(lines, scanner.Text())
+			}
 
-			// Clean the ][ because of LLM
-			regex := regexp.MustCompile(`}\s*\]\s*\[\s*{`)
-			cleaned := regex.ReplaceAll(contents, []byte("},{"))
+			if err := scanner.Err(); err != nil {
+				panic(err)
+			}
+
+			cleanedLines := []string{}
+
+			// Remove all ``` and ```json lines. I told gemini to not include them but it continues to </3
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "```" || line == "```json" {
+					continue
+				}
+				// Remove lonely [ or ]. Later we will add them on the first line.
+				if line == "[" || line == "]" {
+					continue
+				}
+
+				// Fix \" followed by , => add a quote before the comma. To ensure every Content ends with " as sometimes gemini ends it with \" (DESPITE BEING TOLD NOT TO)
+				line = regexp.MustCompile(`\\",`).ReplaceAllString(line, `\\",",`)
+				cleanedLines = append(cleanedLines, line)
+			}
+
+			// Add [ at the start if not present
+			if len(cleanedLines) > 0 && strings.TrimSpace(cleanedLines[0]) != "[" {
+				cleanedLines = append([]string{"["}, cleanedLines...)
+			}
+
+			// Add ] at the end if not present
+			if len(cleanedLines) > 1 && strings.TrimSpace(cleanedLines[len(cleanedLines)-1]) != "]" {
+				cleanedLines = append(cleanedLines, "]")
+			}
+
+			final := strings.Join(cleanedLines, "\n")
+
+			// Clean LLM hallucinated json: ] [
+			final = regexp.MustCompile(`}\s*\]\s*\[\s*{`).ReplaceAllString(final, "},{")
 
 			// NUKE FILE
 			err = f.Truncate(0)
@@ -256,7 +296,7 @@ func postprocessBooks() {
 				panic(err)
 			}
 
-			_, err = f.Write(cleaned)
+			_, err = f.Write([]byte(final))
 			if err != nil {
 				panic(err)
 			}
