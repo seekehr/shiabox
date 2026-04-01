@@ -1,0 +1,9 @@
+server/.idea/
+client/node_modules/
+server/storage/
+server/snapshots/
+server/.qdrant-initialized
+server/assets/logs/
+server/.env
+client/.vscode
+*.env

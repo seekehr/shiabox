@@ -1,0 +1,16 @@
+[project]
+name = "shiabox"
+version = "0.1.0"
+description = "AI-powered search engine for Shi'a ahadith using RAG with Qdrant and mxbai-embed-large"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "python-dotenv>=1.2.2",
+    "qdrant-client",
+    "httpx",
+    "groq",
+    "google-genai",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+]
