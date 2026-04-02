@@ -1,37 +1,31 @@
-"""FastAPI server for shiabox -- translates cmd/server.go."""
+import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from groq import Groq
 
-from src.config import FRONTEND_URL
-from src.handlers.ai_handler import router as ai_router
-from src.llms.groq_llm import GroqLLM
-from src.vector_db import VectorDB
+from llm.requests import LLMRequester
+from llm.embedding import embeddings
 
-load_dotenv()
+def input_loop():
+    load_dotenv()
+    requester = LLMRequester(Groq(api_key=os.getenv("GROQ_API_KEY")))
 
-app = FastAPI(title="shiabox")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Origin", "Content-Type", "Accept", "Authorization"],
-    allow_credentials=True,
-)
-
-app.include_router(ai_router)
-
-
-@app.on_event("startup")
-def startup() -> None:
-    vector_db = VectorDB.connect()
-    groq = GroqLLM.create(vector_db)
-    app.state.groq = groq
+    flag = input("Start server (0) or start chatting (1)? ")
+    if flag == "0":
+        pass #todo
+    elif flag == "1":
+        while True:
+            user_prompt = input("Enter your prompt: ")
+            stream = requester.prompt(user_prompt)
+            for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content:
+                    print(content, end="", flush=True)
+            print()
+    else:
+        print("Unexpected input.")
 
 
-if __name__ == "__main__":
-    import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=1323, reload=True)
+if __name__ == '__main__':
+    input_loop()

@@ -1,10 +1,3 @@
+plan.md
+*.env
 .venv/
-.env
-.idea/
-__pycache__/
-*.pyc
-assets/embeddings/
-assets/unparsed_books/
-assets/pdf_books/
-assets/logs/
-shiabox-main/

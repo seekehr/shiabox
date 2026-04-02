@@ -1,16 +1,12 @@
 [project]
-name = "shiabox"
+name = "server"
 version = "0.1.0"
-description = "AI-powered search engine for Shi'a ahadith using RAG with Qdrant and mxbai-embed-large"
-readme = "README.md"
+description = "Searches ahadith using the power of LLM"
 requires-python = ">=3.14"
 dependencies = [
-    "python-dotenv>=1.2.2",
-    "qdrant-client",
-    "httpx",
-    "groq",
-    "google-genai",
-    "fastapi",
-    "uvicorn",
-    "pydantic",
+    "groq>=1.1.2",
+    "ollama>=0.6.1",
+    "python-dotenv",
+    "aiofiles",
+    "qdrant-client"
 ]

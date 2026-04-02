@@ -43,4 +43,4 @@ Hadith {ID}
 Source: Book {Book}, Page {Page}
 Score: {Score}
 
-(Repeat for up to 3 hadiths, sorted by descending score or strength of match)
+(Repeat for up to 3 hadiths, but only if they are relevant, sorted by descending score or strength of match)
