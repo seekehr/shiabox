@@ -3,7 +3,12 @@ client/node_modules/
 server/storage/
 server/snapshots/
 server/.qdrant-initialized
+server/assets/qdrant_data/
 server/assets/logs/
 server/.env
 client/.vscode
 *.env
+.idea/
+server/.venv/
+server/.vscode/
+client/.vscode

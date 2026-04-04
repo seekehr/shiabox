@@ -24,6 +24,17 @@ def setup_qdrant() -> QdrantClient:
 
 
 def embed_and_init_books(client: QdrantClient, books: list[tuple[str, list[dict]]]) -> int:
+    """Embed and initialize the books in Qdrant.
+    Takes a list of tuples, each containing a book name and a list of hadiths.
+    Each hadith is a dictionary with the following keys:
+    - "Hadith": The hadith number
+    - "Chapter": The chapter number
+    - "Content": The hadith content
+
+    Embeds the hadiths in batches of size BATCH_SIZE, and inserts them into Qdrant.
+
+    Returns the number of points embedded.
+    """
     point_id = 0
     for book_name, hadiths in books:
         print(f"  Embedding '{book_name}' ({len(hadiths)} hadiths)...")
@@ -59,6 +70,9 @@ def embed_and_init_books(client: QdrantClient, books: list[tuple[str, list[dict]
 
 
 def get_qdrant_client() -> QdrantClient:
+    """Get the Qdrant client.
+    Raises a FileNotFoundError if the Qdrant data is not found.
+    """
     qdrant_path = Path(config.constants.QDRANT_PATH)
     if not qdrant_path.exists():
         raise FileNotFoundError(
@@ -68,6 +82,14 @@ def get_qdrant_client() -> QdrantClient:
 
 
 def search_ahadith(client: QdrantClient, query: str, top_k: int = 5) -> list[dict]:
+    """Search for ahadith in Qdrant.
+    Takes a query string, and returns a list of dictionaries, each containing the following keys:
+    - "score": The similarity score of the hadith to the query
+    - "book": The book name
+    - "hadith_number": The hadith number
+    - "chapter": The chapter number
+    - "content": The hadith content
+    """
     embedding, err = embed_text(query)
     if embedding is None:
         raise ValueError(f"Failed to embed query: {err}")

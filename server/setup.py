@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+import re
 
 import aiofiles
 
@@ -34,12 +35,44 @@ async def load_parsed_books() -> list[tuple[str, list[dict]]]:
     books_data = await asyncio.gather(*tasks)
     return [(p.stem, data) for p, data in zip(paths, books_data)]
 
+async def convert_pdf_to_text():
+    """Convert all PDF books to text, and delete the ones successfully converted from pdf folder."""
+    pdf_books = list(Path(config.constants.PDF_BOOKS_DIR).glob("*.pdf"))
+
+    for pdf_book in pdf_books:
+        print(f"Converting {pdf_book.stem} to text...")
+        output_path = pdf_book.with_suffix(".txt")
+        process = await asyncio.create_subprocess_exec(
+            "pdftotext",
+            str(pdf_book),
+            str(output_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        _, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            print(f"Failed: {pdf_book.name}")
+            print(stderr.decode())
+            continue
+
+        # Strip Arabic characters
+        text = output_path.read_text(encoding="utf-8", errors="ignore")
+        clean_text = re.sub(r'[\u0600-\u06FF]+', '', text)
+        output_path.write_text(clean_text, encoding="utf-8")
+
+        pdf_book.unlink()
+        print(f"Converted: {output_path.name}")
 
 async def main():
     """Ready-up all the PDF books, convert them into text if needed, chunk them
     into ahadith if needed, embed the ahadith, and save them all in a qdrant database.
     """
-    print("Setting up...")
+    print("Setting up... MAKE SURE PDFTOTEXT by Popper's Utils is installed and in the PATH.")
+    print("Converting PDF books to text...")
+    await convert_pdf_to_text()
+
     print("Loading parsed books...")
     books = await load_parsed_books()
     total_hadiths = sum(len(hadiths) for _, hadiths in books)
