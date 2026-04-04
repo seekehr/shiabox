@@ -58,6 +58,15 @@ def embed_and_init_books(client: QdrantClient, books: list[tuple[str, list[dict]
     return point_id
 
 
+def get_qdrant_client() -> QdrantClient:
+    qdrant_path = Path(config.constants.QDRANT_PATH)
+    if not qdrant_path.exists():
+        raise FileNotFoundError(
+            f"Qdrant data not found at {qdrant_path}. Run setup.py first."
+        )
+    return QdrantClient(path=str(qdrant_path))
+
+
 def search_ahadith(client: QdrantClient, query: str, top_k: int = 5) -> list[dict]:
     embedding, err = embed_text(query)
     if embedding is None:
