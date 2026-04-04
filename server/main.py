@@ -3,15 +3,16 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 
-from llm.requests import LLMRequester
+from llm.chat import ChatLLM
 from vectordb.qdrant import get_qdrant_client, search_ahadith
 
 TOP_K = 10
 
 
 def input_loop():
+    """Run an interactive CLI: server stub or RAG chat against Qdrant + Groq."""
     load_dotenv()
-    requester = LLMRequester(Groq(api_key=os.getenv("GROQ_API_KEY")))
+    requester = ChatLLM(Groq(api_key=os.getenv("GROQ_API_KEY")))
 
     flag = input("Start server (0) or start chatting (1)? ")
     if flag == "0":

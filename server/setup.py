@@ -12,33 +12,51 @@ semaphore = asyncio.Semaphore(10)
 
 
 async def load_json_file(path: str):
-    """Load a single JSON file."""
+    """Load and parse one JSON file.
+
+    Args:
+        path (str): Filesystem path to the JSON file.
+
+    Returns:
+        object: Deserialized JSON (structure depends on the file).
+    """
     async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
         content = await f.read()
         return json.loads(content)
 
 
 async def load_json_file_limited(path: str):
-    """Load a single JSON file with concurrent limit."""
+    """Load one JSON file under the module concurrency semaphore.
+
+    Args:
+        path (str): Filesystem path to the JSON file.
+
+    Returns:
+        object: Deserialized JSON (structure depends on the file).
+    """
     async with semaphore:
         return await load_json_file(path)
 
 
 async def load_parsed_books() -> list[tuple[str, list[dict]]]:
-    """Load all parsed book JSON files concurrently.
+    """Load every *.json under PARSED_BOOKS_DIR concurrently.
 
     Returns:
-        List of (book_name, entries).
+        list[tuple[str, list[dict]]]: (stem filename, parsed hadith list) per book.
     """
     paths = list(Path(config.constants.PARSED_BOOKS_DIR).glob("*.json"))
     tasks = [load_json_file_limited(str(p)) for p in paths]
     books_data = await asyncio.gather(*tasks)
     return [(p.stem, data) for p, data in zip(paths, books_data)]
 
-async def convert_pdf_to_text():
-    """Convert all PDF books to text, and delete the ones successfully converted from pdf folder."""
-    pdf_books = list(Path(config.constants.PDF_BOOKS_DIR).glob("*.pdf"))
+async def convert_pdf_to_text() -> int:
+    """Convert each PDF in PDF_BOOKS_DIR to text via pdftotext, strip Arabic, remove PDFs.
 
+    Returns:
+        int: Count of books successfully converted.
+    """
+    pdf_books = list(Path(config.constants.PDF_BOOKS_DIR).glob("*.pdf"))
+    count = 0
     for pdf_book in pdf_books:
         print(f"Converting {pdf_book.stem} to text...")
         output_path = pdf_book.with_suffix(".txt")
@@ -64,14 +82,15 @@ async def convert_pdf_to_text():
 
         pdf_book.unlink()
         print(f"Converted: {output_path.name}")
+        count += 1
+    return count
 
 async def main():
-    """Ready-up all the PDF books, convert them into text if needed, chunk them
-    into ahadith if needed, embed the ahadith, and save them all in a qdrant database.
-    """
+    """Convert PDFs, load parsed books, init Qdrant, embed hadiths, and upsert into the DB."""
     print("Setting up... MAKE SURE PDFTOTEXT by Popper's Utils is installed and in the PATH.")
     print("Converting PDF books to text...")
-    await convert_pdf_to_text()
+    count = await convert_pdf_to_text()
+    print(f"Need to chunk {count} books into ahadith...")
 
     print("Loading parsed books...")
     books = await load_parsed_books()

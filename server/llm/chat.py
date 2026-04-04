@@ -5,13 +5,30 @@ from groq.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUser
 from config.file_configs import get_chat_prompt
 from config.constants import CHAT_MODEL
 
-class LLMRequester:
+class ChatLLM:
+    """Handle Groq chat completions with a file-backed system prompt and optional RAG context."""
+
     def __init__(self, client: Groq):
+        """Initialize the chat LLM helper.
+
+        Args:
+            client (Groq): The Groq API client.
+        """
         print(os.getenv("GROQ_API_KEY"))
         self._client = client
         self._chat_prompt = get_chat_prompt()
 
     def prompt(self, user_prompt: str, search_results: list[dict] | None = None) -> ChatCompletion | Stream[ChatCompletionChunk]:
+        """Request a chat completion from the Groq LLM.
+
+        Args:
+            user_prompt (str): The user message.
+            search_results (list[dict] | None): Optional retrieval hits. If set, system content
+                combines the chat prompt with formatted results; otherwise only the chat prompt is used.
+
+        Returns:
+            ChatCompletion | Stream[ChatCompletionChunk]: The completion response (streamed chunks when stream=True).
+        """
         if search_results:
             system_content = self._build_rag_prompt(user_prompt, search_results)
         else:
@@ -27,6 +44,15 @@ class LLMRequester:
         )
 
     def _build_rag_prompt(self, question: str, results: list[dict]) -> str:
+        """Build system prompt text that appends formatted search results for RAG.
+
+        Args:
+            question (str): The user question; substituted into the chat prompt template.
+            results (list[dict]): Hit dicts with keys score, book, chapter, hadith_number, content.
+
+        Returns:
+            str: Chat prompt with the question substituted into the template, plus formatted hadith blocks.
+        """
         candidates = []
         for i, r in enumerate(results, 1):
             candidates.append(

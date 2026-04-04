@@ -10,6 +10,7 @@ PARSED_BOOKS_DIR = BASE_DIR / "assets" / "parsed_books"
 QDRANT_PATH = BASE_DIR / "assets" / "qdrant_data"
 
 CHAT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+CHUNKER_MODEL = "gemini-3-flash-preview"
 
 # EMBEDDING
 EMBEDDING_MODEL = "qwen3-embedding:4b"
