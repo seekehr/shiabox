@@ -4,9 +4,12 @@ from pathlib import Path
 import re
 
 import aiofiles
+from dotenv import load_dotenv
 
 import config.constants
 from vectordb.qdrant import setup_qdrant, embed_and_init_books
+from llm.chunker import ChunkerLLM
+from config.file_configs import get_chunking_prompt
 
 semaphore = asyncio.Semaphore(10)
 
@@ -49,14 +52,14 @@ async def load_parsed_books() -> list[tuple[str, list[dict]]]:
     books_data = await asyncio.gather(*tasks)
     return [(p.stem, data) for p, data in zip(paths, books_data)]
 
-async def convert_pdf_to_text() -> int:
+async def convert_pdf_to_text() -> list[str]:
     """Convert each PDF in PDF_BOOKS_DIR to text via pdftotext, strip Arabic, remove PDFs.
 
     Returns:
-        int: Count of books successfully converted.
+        list[str]: List of text files successfully converted.
     """
     pdf_books = list(Path(config.constants.PDF_BOOKS_DIR).glob("*.pdf"))
-    count = 0
+    text_files = []
     for pdf_book in pdf_books:
         print(f"Converting {pdf_book.stem} to text...")
         output_path = pdf_book.with_suffix(".txt")
@@ -82,15 +85,21 @@ async def convert_pdf_to_text() -> int:
 
         pdf_book.unlink()
         print(f"Converted: {output_path.name}")
-        count += 1
-    return count
+        text_files.append(output_path)
+    return text_files
 
 async def main():
     """Convert PDFs, load parsed books, init Qdrant, embed hadiths, and upsert into the DB."""
+    load_dotenv()
     print("Setting up... MAKE SURE PDFTOTEXT by Popper's Utils is installed and in the PATH.")
     print("Converting PDF books to text...")
-    count = await convert_pdf_to_text()
-    print(f"Need to chunk {count} books into ahadith...")
+    text_files = await convert_pdf_to_text()
+    print(f"Need to chunk {len(text_files)} books into ahadith...")
+    chunker = ChunkerLLM()
+    for text_file in text_files:
+        chunked = await chunker.start_chunking(text_file.read_text(encoding="utf-8"), get_chunking_prompt(text_file.stem))
+        text_file.write_text(chunked, encoding="utf-8")
+        print(f"Chunked: {text_file.name}")
 
     print("Loading parsed books...")
     books = await load_parsed_books()

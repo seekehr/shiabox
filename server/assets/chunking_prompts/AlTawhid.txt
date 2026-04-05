@@ -81,4 +81,7 @@ The Messenger of Allah (SA) said: "Neither I nor anyone before me has said
 anything like: There is no god but Allah' [La ilaha illa Allah]."
   "Chapter": 1
 }... and so on, in proper JSON.
+
+if a chunk starts mid-chain or mid-hadith, treat it as continuation / skip or merge with the relevant output
+
 Ignore the page numbers that appear as a single number on each line. Start from chapter one and end at chapter sixty seven. Do not use invalid JSON. Include chain of narration in content.

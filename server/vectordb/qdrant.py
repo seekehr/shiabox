@@ -99,7 +99,9 @@ def search_ahadith(client: QdrantClient, query: str, top_k: int = 5) -> list[dic
         top_k (int): Maximum number of hits to return.
 
     Returns:
-        list[dict]: Payloads with keys score, book, hadith_number, chapter, content.
+        list[dict]: Qdrant payload fields plus ``score``. Core keys are typically ``book``,
+        ``chapter``, ``hadith_number``, and ``content``; optional keys (e.g. ``page``,
+        ``sermon``, ``source``) are passed through when present on stored points.
 
     Raises:
         ValueError: If the query cannot be embedded.
@@ -114,13 +116,4 @@ def search_ahadith(client: QdrantClient, query: str, top_k: int = 5) -> list[dic
         limit=top_k,
     )
 
-    return [
-        {
-            "score": point.score,
-            "book": point.payload["book"],
-            "hadith_number": point.payload["hadith_number"],
-            "chapter": point.payload["chapter"],
-            "content": point.payload["content"],
-        }
-        for point in results.points
-    ]
+    return [{**dict(point.payload), "score": point.score} for point in results.points]

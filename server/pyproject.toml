@@ -9,5 +9,12 @@ dependencies = [
     "python-dotenv",
     "aiofiles",
     "qdrant-client",
-    "google-genai"
+    "google-genai",
+    "fastapi",
+    "slowapi",
+    "uvicorn"
 ]
+
+[tool.pyright]
+include = ["."]
+extraPaths = ["."]

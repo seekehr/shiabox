@@ -5,8 +5,49 @@ from groq.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUser
 from config.file_configs import get_chat_prompt
 from config.constants import CHAT_MODEL
 
+
+def _is_missing_source_value(value: object) -> bool:
+    if value is None:
+        return True
+    s = str(value).strip()
+    return s == "" or s.upper() == "N/A"
+
+
+def _format_hadith_source(r: dict) -> str:
+    """Build a single Source: line from whatever metadata the hit provides.
+
+    Payloads may be minimal (e.g. chapter + hadith number + content only) or include
+    page, sermon, or a preformatted ``source`` string.
+    """
+    raw = r.get("source")
+    if isinstance(raw, str) and not _is_missing_source_value(raw):
+        return f"Source: {raw.strip()}"
+
+    parts: list[str] = []
+    book = r.get("book")
+    if not _is_missing_source_value(book):
+        bs = str(book).strip()
+        parts.append(f"Book {bs}" if bs.isdigit() else bs)
+    chapter = r.get("chapter")
+    if not _is_missing_source_value(chapter):
+        parts.append(f"Chapter {chapter}")
+    hadith_no = r.get("hadith_number")
+    if not _is_missing_source_value(hadith_no):
+        parts.append(f"Hadith #{hadith_no}")
+    page = r.get("page")
+    if not _is_missing_source_value(page):
+        parts.append(f"Page {page}")
+    sermon = r.get("sermon")
+    if not _is_missing_source_value(sermon):
+        parts.append(f"Sermon {sermon}")
+
+    if not parts:
+        return "Source: (see content)"
+    return "Source: " + ", ".join(parts)
+
+
 class ChatLLM:
-    """Handle Groq chat completions with a file-backed system prompt and optional RAG context."""
+    """Handle Groq chat completions."""
 
     def __init__(self, client: Groq):
         """Initialize the chat LLM helper.
@@ -14,7 +55,6 @@ class ChatLLM:
         Args:
             client (Groq): The Groq API client.
         """
-        print(os.getenv("GROQ_API_KEY"))
         self._client = client
         self._chat_prompt = get_chat_prompt()
 
@@ -55,11 +95,12 @@ class ChatLLM:
         """
         candidates = []
         for i, r in enumerate(results, 1):
+            score = float(r.get("score", 0.0))
+            content = r.get("content") or ""
             candidates.append(
-                f"Hadith {i} (Score: {r['score']:.4f})\n"
-                f"Source: Book {r['book']}, Chapter {r['chapter']}, "
-                f"Hadith #{r['hadith_number']}\n"
-                f"{r['content']}"
+                f"Hadith {i} (Score: {score:.4f})\n"
+                f"{_format_hadith_source(r)}\n"
+                f"{content}"
             )
         candidates_text = "\n\n".join(candidates)
         return self._chat_prompt.replace("{InputText}", question) + "\n" + candidates_text

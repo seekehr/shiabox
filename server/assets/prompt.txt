@@ -15,7 +15,7 @@ Question:
 {InputText}
 Candidates:
 
-Each hadith is listed with a similarity score (higher = more likely to match), along with its source (book, page), and full content (including chain of narration).
+Each hadith is listed with a similarity score (higher = more likely to match), a source line (which may include work title, chapter, hadith number, page, sermon, or other reference fields—use only what is shown), and full content (including chain of narration).
 Task:
 
     Think carefully about the user’s theological or informational intent.
@@ -40,7 +40,7 @@ Output Format (only if matches are found):
 Hadith {ID}
 
 {Full Hadith Content}
-Source: Book {Book}, Page {Page}
+Source: copy the candidate’s source line exactly (it may list only chapter and hadith number, or also page, sermon, work title, etc.).
 Score: {Score}
 
 (Repeat for up to 3 hadiths, but only if they are relevant, sorted by descending score or strength of match)
