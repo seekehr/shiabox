@@ -12,3 +12,9 @@ client/.vscode
 server/.venv/
 server/.vscode/
 client/.vscode
+.cursor/
+server/.cursor/
+client/.cursor/
+*__pycache__/
+config.bat
+node_modules

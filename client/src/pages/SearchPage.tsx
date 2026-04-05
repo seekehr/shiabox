@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Search, User, Bot, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, User, X } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { sendAIPrompt } from '../controller/ai_controller';
-import type { StreamResponse } from '../controller/controllers';
 import ParseMD from '../utils/ParseAIOutput';
+import zulifqarIcon from '../assets/zulifqar.jpg';
 
 const searchSuggestions = [
 	"Why do Shias say \"Ya Ali\"?",
@@ -25,6 +25,11 @@ const SearchPage = () => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
 	const [abortController, setAbortController] = useState<AbortController | null>(null);
+	const messagesEndRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+	}, [messages]);
 
 	const handleStop = () => {
 		if (abortController) {
@@ -44,7 +49,7 @@ const SearchPage = () => {
 		setSearchQuery('');
 
 		const controller = sendAIPrompt(currentQuery,
-			(streamData) => { // onReceive
+			(streamData) => {
 				if (streamData.done) {
 					setIsSearching(false);
 					setAbortController(null);
@@ -64,7 +69,7 @@ const SearchPage = () => {
 					return prev;
 				});
 			},
-			(error) => { // onError
+			(error) => {
 				console.error(error);
 				setMessages(prev => {
 					const newMessages = [...prev];
@@ -86,113 +91,131 @@ const SearchPage = () => {
 		setAbortController(controller);
 	};
 
-	return (
-		<div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800">
-			<Navbar />
-			<main className="flex-grow flex flex-col items-center justify-center px-6">
-				<div className="w-full max-w-4xl mx-auto">
-					{/* Title text */}
-					<div className="text-center mb-12">
-						<h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-							Shiabox AI Search
-						</h2>
-						<p className="text-lg text-gray-300 max-w-2xl mx-auto">
-							Search for any hadith or topic. WIP (contribute on github)
-						</p>
-					</div>
+	const hasMessages = messages.length > 0;
 
-					{/* input search form */}
-					<form onSubmit={handleSearch} className="relative mb-8">
-						<div className="relative">
+	return (
+		<div className="flex flex-col min-h-screen bg-background">
+			<Navbar />
+
+			<main className={`flex-grow flex flex-col px-6 md:px-12 lg:px-24 pt-24 pb-12 transition-all duration-500 ${
+				hasMessages ? 'justify-start' : 'justify-center'
+			}`}>
+				{/* Asymmetric layout: wide left margin */}
+				<div className="w-full max-w-3xl ml-0 md:ml-[8vw] lg:ml-[12vw]">
+
+					{/* Hero / Title */}
+					{!hasMessages && (
+						<div className="mb-16" style={{ animation: 'fade-in-up 0.6s ease-out' }}>
+							<p className="font-[Inter] text-[11px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/70 mb-4">
+								AI-Powered Hadith Search
+							</p>
+							<h1 className="font-[Manrope] text-[3.5rem] md:text-[4.5rem] font-light leading-[1.05] tracking-[0.02em] text-on-surface mb-6">
+								Shiabox
+							</h1>
+							<p className="font-[Inter] text-base font-light leading-relaxed text-on-surface-variant max-w-md">
+								Search for any hadith or topic across authenticated Shia collections. Still a work in progress.
+							</p>
+						</div>
+					)}
+
+					{/* Search input */}
+					<form onSubmit={handleSearch} className={`relative ${hasMessages ? 'mb-10' : 'mb-14'}`}>
+						<div className="relative group">
 							<input
 								type="text"
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
 								placeholder="Ask about any hadith or topic..."
-								className="w-full px-6 py-4 pr-16 text-lg rounded-2xl border-2 border-gray-600 bg-gray-800/90 backdrop-blur-sm text-white placeholder-gray-400 focus:border-emerald-500 focus:outline-none transition-all duration-200 shadow-xl hover:shadow-2xl hover:bg-gray-800"
+								className="w-full bg-transparent border-0 border-b border-outline-variant/30 px-1 py-4 pr-14 text-base font-[Inter] font-light text-on-surface placeholder-on-surface-variant/40 focus:border-primary focus:outline-none transition-all duration-300"
 								disabled={isSearching}
 							/>
 							<button
 								type={isSearching ? "button" : "submit"}
 								onClick={isSearching ? handleStop : undefined}
 								disabled={isSearching ? false : !searchQuery.trim()}
-								className="absolute right-2 top-1/2 transform -translate-y-1/2 p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+								className="absolute right-0 top-1/2 -translate-y-1/2 p-2.5 rounded-[0.375rem] bg-gradient-to-br from-primary to-primary-container text-on-primary-fixed disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-all duration-300"
 							>
 								{isSearching ? (
-									<X className="w-5 h-5" />
+									<X className="w-4 h-4" />
 								) : (
-									<Search className="w-5 h-5" />
+									<Search className="w-4 h-4" />
 								)}
 							</button>
 						</div>
 					</form>
 
-					{/* messages bw AI and user; prob gonna move this to /chat?id route */}
-					{messages.length > 0 ? (
-						<div className="space-y-6 max-w-4xl w-full">
+					{/* Messages or Suggestions */}
+					{hasMessages ? (
+						<div className="space-y-8">
 							{messages.map((msg, index) => (
-								<div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
-									{msg.sender === 'ai' && (
-										<div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-											<Bot className="w-5 h-5 text-emerald-400" />
+								<div
+									key={index}
+									className="flex items-start gap-4"
+									style={{ animation: 'fade-in-up 0.4s ease-out' }}
+								>
+									{msg.sender === 'ai' ? (
+										<img
+											src={zulifqarIcon}
+											alt="Shiabox AI"
+											className="w-7 h-7 rounded-[0.375rem] object-cover flex-shrink-0 mt-0.5"
+										/>
+									) : (
+										<div className="w-7 h-7 rounded-[0.375rem] bg-surface-container flex items-center justify-center flex-shrink-0 mt-0.5">
+											<User className="w-3.5 h-3.5 text-on-surface-variant" />
 										</div>
 									)}
-									<div className={`p-4 rounded-2xl max-w-2xl ${msg.sender === 'user' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
+
+									<div className="flex-1 min-w-0">
+										<span className="font-[Inter] text-[10px] font-medium uppercase tracking-[0.06em] text-on-surface-variant/50 mb-2 block">
+											{msg.sender === 'ai' ? 'Shiabox' : 'You'}
+										</span>
 										{msg.sender === 'ai' ? (
 											msg.isError ? (
-												<p className="whitespace-pre-wrap text-red-500">{msg.text}</p>
-											) : (
+												<p className="font-[Inter] text-sm font-light text-error">{msg.text}</p>
+											) : msg.text ? (
 												<ParseMD content={msg.text} />
+											) : (
+												<div className="flex items-center gap-1.5 py-2">
+													<div className="w-1.5 h-1.5 rounded-full bg-primary" style={{ animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+													<div className="w-1.5 h-1.5 rounded-full bg-primary" style={{ animation: 'pulse-dot 1.4s ease-in-out 0.2s infinite' }} />
+													<div className="w-1.5 h-1.5 rounded-full bg-primary" style={{ animation: 'pulse-dot 1.4s ease-in-out 0.4s infinite' }} />
+												</div>
 											)
 										) : (
-											<p className="whitespace-pre-wrap">{msg.text}</p>
+											<p className="font-[Inter] text-sm font-light leading-relaxed text-on-surface">{msg.text}</p>
 										)}
 									</div>
-									{msg.sender === 'user' && (
-										<div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-											<User className="w-5 h-5 text-gray-300" />
-										</div>
-									)}
 								</div>
 							))}
-							{isSearching && (
-								<div className="flex items-start gap-4">
-									<div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-										<Bot className="w-5 h-5 text-emerald-400" />
-									</div>
-									<div className="p-4 rounded-2xl max-w-2xl bg-gray-800 text-gray-200">
-										<div className="flex items-center space-x-2">
-											<div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-											<div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse delay-75"></div>
-											<div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse delay-150"></div>
-										</div>
-									</div>
-								</div>
-							)}
+							<div ref={messagesEndRef} />
 						</div>
 					) : (
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ animation: 'fade-in-up 0.6s ease-out 0.15s both' }}>
 							{searchSuggestions.map((suggestion, index) => (
 								<button
 									key={index}
 									onClick={() => setSearchQuery(suggestion)}
-									className="p-4 rounded-xl bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 hover:border-emerald-400 hover:bg-gray-800 transition-all duration-200 text-left group shadow-lg hover:shadow-xl"
+									className="group relative p-4 rounded-[0.25rem] bg-surface-container-low text-left transition-all duration-300 hover:bg-surface-container hover:scale-[1.01]"
 								>
-									<div className="flex items-center space-x-3">
-										<div className="p-2 rounded-lg bg-gradient-to-r from-emerald-900/50 to-teal-900/50 group-hover:from-emerald-800/60 group-hover:to-teal-800/60 transition-colors duration-200">
-											<Search className="w-4 h-4 text-emerald-400" />
-										</div>
-										<span className="text-gray-200 font-medium group-hover:text-white">{suggestion}</span>
+									<div className="flex items-center gap-3">
+										<Search className="w-3.5 h-3.5 text-on-surface-variant/40 group-hover:text-primary transition-colors duration-300 flex-shrink-0" />
+										<span className="font-[Inter] text-sm font-light text-on-surface-variant group-hover:text-on-surface transition-colors duration-300">
+											{suggestion}
+										</span>
 									</div>
 								</button>
 							))}
 						</div>
 					)}
 
-					{/* disclaimer */}
-					<div className="text-center text-gray-400 text-sm mt-12">
-						<p>NOTE: TAKE AS A GRAIN OF SALT. MAY HALLUCINATE AND INAUTHENTIC AHADITH ARE ALSO INCLUDED.</p>
-					</div>
+					{/* Disclaimer */}
+					{!hasMessages && (
+						<div className="mt-20">
+							<p className="font-[Inter] text-[10px] font-medium uppercase tracking-[0.06em] text-on-surface-variant/30">
+								Note: Results may contain inaccuracies. Verify with authenticated sources.
+							</p>
+						</div>
+					)}
 				</div>
 			</main>
 		</div>

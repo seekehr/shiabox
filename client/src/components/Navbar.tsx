@@ -1,25 +1,25 @@
-import { Home, Sparkles, Github } from "lucide-react";
+import { Github, BookOpen } from "lucide-react";
 
 const githubUrl = "https://github.com/seekehr/shiabox";
 
 function Navbar() {
     return (
-        <nav className="flex items-center justify-between px-6 py-4 bg-gray-900/80 backdrop-blur-md border-b border-gray-700/50">
-            <div className="flex items-center space-x-3">
-                <h1 className="text-xl font-semibold text-white">Shiabox</h1>
-            </div>
-            <div className="flex items-center space-x-2">
-            <a
+        <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-surface/70 backdrop-blur-[20px]">
+            <a href="/" className="flex items-center gap-3 group">
+                <BookOpen className="w-5 h-5 text-primary transition-colors duration-300" />
+                <span className="font-[Manrope] text-lg font-light tracking-[0.05em] text-on-surface transition-colors duration-300 group-hover:text-primary">
+                    Shiabox
+                </span>
+            </a>
+            <div className="flex items-center gap-1">
+                <a
                     href={githubUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full hover:bg-gray-800 transition-colors duration-200"
+                    className="p-2.5 rounded-[0.375rem] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50 transition-all duration-300"
                 >
-                    <Github className="w-5 h-5 text-gray-300 hover:text-white" />
+                    <Github className="w-[18px] h-[18px]" />
                 </a>
-                <button className="p-2 rounded-full hover:bg-gray-800 transition-colors duration-200">
-                    <Home className="w-5 h-5 text-gray-300 hover:text-white" />
-                </button>
             </div>
         </nav>
     );
