@@ -28,18 +28,23 @@ def setup_qdrant() -> QdrantClient:
     return client
 
 
-def embed_and_init_books(client: QdrantClient, books: list[tuple[str, list[dict]]]) -> int:
+def embed_and_init_books(
+    client: QdrantClient,
+    books: list[tuple[str, list[dict]]],
+    start_id: int = 0,
+) -> int:
     """Embed hadith payloads and upsert them into the Qdrant collection.
 
     Args:
         client (QdrantClient): Open Qdrant client.
         books (list[tuple[str, list[dict]]]): Pairs of book name and hadith dicts; each dict
             uses keys Hadith, Chapter, Content.
+        start_id (int): First point id to use (for appending to an existing collection).
 
     Returns:
-        int: Number of points successfully embedded (monotonic point ids).
+        int: Next available point id after all upserts.
     """
-    point_id = 0
+    point_id = start_id
     for book_name, hadiths in books:
         print(f"  Embedding '{book_name}' ({len(hadiths)} hadiths)...")
         for i in range(0, len(hadiths), config.constants.BATCH_SIZE):

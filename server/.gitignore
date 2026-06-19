@@ -1,3 +1,6 @@
 plan.md
 *.env
 .venv/
+assets/pdf_books/
+assets/qdrant_data/
+assets/txt_books/

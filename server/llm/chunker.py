@@ -1,11 +1,11 @@
 import asyncio
 import json
+import os
 import re
 
-from google import genai
-from google.genai import types
+from openai import AsyncOpenAI
 
-from config.constants import CHUNKER_MODEL, CHUNK_SIZE, MAX_CHUNKING_JOBS_IN_ONE_MIN
+from config.constants import CHUNKER_MODEL, CHUNK_SIZE, MAX_CHUNKING_JOBS_IN_ONE_MIN, CHUNKER_TIMEOUT_SECS
 
 # Numbered hadith lines (e.g. "1. Narrator…", "12. …"); split here instead of mid-hadith.
 _HADITH_LINE_START = re.compile(r"(?m)^\s*\d+\.\s")
@@ -29,58 +29,70 @@ def _segments_at_hadith_starts(text: str) -> list[str]:
 
 
 def hadith_aware_pieces(text: str) -> list[str]:
-    """Split *text* at numbered hadith lines; each piece is at most ``CHUNK_SIZE`` characters.
+    """Pack hadith segments greedily into chunks of at most ``CHUNK_SIZE`` characters.
 
-    Segments from boundaries are kept whole when they fit. Longer segments (or whole books with
-    no hadith lines) are cut on a ``CHUNK_SIZE`` stride. Empty segments are dropped.
+    Segments that individually exceed ``CHUNK_SIZE`` are split on a stride. Empty segments
+    are dropped.
     """
     if not text:
         return []
-    pieces: list[str] = []
+
+    raw: list[str] = []
     for s in _segments_at_hadith_starts(text):
         if not s:
             continue
         if len(s) <= CHUNK_SIZE:
-            pieces.append(s)
+            raw.append(s)
         else:
             for i in range(0, len(s), CHUNK_SIZE):
-                pieces.append(s[i : i + CHUNK_SIZE])
+                raw.append(s[i : i + CHUNK_SIZE])
+
+    # Greedily merge consecutive segments into chunks up to CHUNK_SIZE
+    pieces: list[str] = []
+    current = ""
+    for seg in raw:
+        if current and len(current) + len(seg) > CHUNK_SIZE:
+            pieces.append(current)
+            current = seg
+        else:
+            current += seg
+    if current:
+        pieces.append(current)
     return pieces
 
 
 class ChunkerLLM:
-    """A class to handle requests to the chunker (gemini) LLM.
-    """
-    def __init__(self):
-        """Initialize the chunker LLM helper.
+    """A class to handle requests to the chunker (ollama) LLM."""
 
-        Args:
-            client (genai.Client): The gemini API client.
-        """
-        # The client gets the API key from the environment variable `GEMINI_API_KEY`.
-        self.client = genai.Client()
+    def __init__(self):
+        """Initialize the chunker LLM helper."""
+        self.client = AsyncOpenAI(
+            base_url="https://api.mistral.ai/v1",
+            api_key=os.environ.get("MISTRAL_API_KEY"),
+        )
 
     async def _chunk(self, system_prompt: str, text: str) -> str:
-        """Chunk the text using the gemini LLM.
-
-        Args:
-            system_prompt (str): The system prompt to use.
-            text (str): The text to chunk.
-
-        Returns:
-            str: The chunked text.
-        """
-        def _sync_generate() -> str:
-            response = self.client.models.generate_content(
+        strict_prefix = (
+            "OUTPUT RULES (non-negotiable):\n"
+            "- Output ONLY raw JSON objects, one per transmitted report, with NO other text.\n"
+            "- Do NOT write explanations, headers, bullet points, markdown, or code fences.\n"
+            "- If there are no transmitted reports in the text, output exactly: NO_RECORDS\n"
+            "- Each JSON object must be on its own, separated by a blank line.\n\n"
+        )
+        response = await asyncio.wait_for(
+            self.client.chat.completions.create(
                 model=CHUNKER_MODEL,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                ),
-                contents=text,
-            )
-            return response.text
-
-        return await asyncio.to_thread(_sync_generate)
+                messages=[
+                    {"role": "system", "content": strict_prefix + system_prompt},
+                    {"role": "user", "content": text},
+                ],
+                max_completion_tokens=32000,
+                temperature=0.2,
+                top_p=1,
+            ),
+            timeout=CHUNKER_TIMEOUT_SECS,
+        )
+        return response.choices[0].message.content
 
     async def start_chunking(self, text: str, system_prompt: str) -> str:
         """Process *text* in hadith-boundary pieces (capped by ``CHUNK_SIZE``) with bounded concurrency.
@@ -102,10 +114,31 @@ class ChunkerLLM:
 
         async def _run_one(index: int, piece: str) -> tuple[int, str]:
             async with sem:
-                out = await self._chunk(system_prompt, piece)
-            return index, out
+                for attempt in range(1, 4):
+                    try:
+                        print(f"Chunking batch {index + 1}/{len(pieces)}..." + (f" (attempt {attempt})" if attempt > 1 else ""))
+                        out = await self._chunk(system_prompt, piece)
+                        preview = (out or "")[:200].replace("\n", " ")
+                        print(f"  └─ batch {index + 1} output preview: {preview!r}")
+                        return index, out
+                    except asyncio.TimeoutError:
+                        print(f"Batch {index + 1} timed out (attempt {attempt}/3), retrying...")
+                raise RuntimeError(f"Batch {index + 1} failed after 3 attempts")
 
         indexed = await asyncio.gather(*(_run_one(i, p) for i, p in enumerate(pieces)))
         indexed.sort(key=lambda t: t[0])
-        combined = "".join(part for _, part in indexed)
-        return json.dumps(combined)
+
+        all_hadiths: list = []
+        for _, part in indexed:
+            if not part or "NO_RECORDS" in part:
+                continue
+            # extract every {...} block from free-form model output
+            for match in re.finditer(r'\{[^{}]*\}', part, re.DOTALL):
+                try:
+                    obj = json.loads(match.group())
+                    if isinstance(obj, dict):
+                        all_hadiths.append(obj)
+                except json.JSONDecodeError:
+                    pass
+
+        return json.dumps(all_hadiths)
