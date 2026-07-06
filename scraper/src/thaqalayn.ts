@@ -1,246 +1,90 @@
-import { chromium, Page } from "playwright";
-import * as readline from "readline";
 import * as fs from "fs";
 import * as path from "path";
+import { findBookHref } from "./browser.ts";
+import { parseChapterLinks, parseChapterMeta, parseHadithLinks, parseHadithPage } from "./parser.ts";
+import { prompt, normalize, slugify, fetchHtml, pool } from "./utils.ts";
+import type { Hadith, HadithTask } from "./types.ts";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+const CONCURRENCY = 12;
 
-interface Hadith {
-    book_name: string;
-    book_number: number;
-    chapter_number: number;
-    chapter_name: string;
-    hadith_number: number;
-    arabic: string | null;
-    english: string | null;
-    url: string;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function prompt(question: string): Promise<string> {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    return new Promise((resolve) => {
-        rl.question(question, (answer) => {
-            rl.close();
-            resolve(answer);
-        });
-    });
-}
-
-function normalize(s: string): string {
-    return s
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase()
-        .trim();
-}
-
-function slugify(s: string): string {
-    return normalize(s).replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-}
-
-async function getText(page: Page, selector: string): Promise<string | null> {
-    try {
-        const el = page.locator(selector).first();
-        if (await el.count() === 0) return null;
-        return (await el.textContent())?.trim() ?? null;
-    } catch {
-        return null;
-    }
-}
-
-// ── Main ───────────────────────────────────────────────────────────────────
-
+// 1. Prompt and find book
 const bookQuery = normalize(await prompt("Enter book name: "));
+const book = await findBookHref(bookQuery);
 
-const browser = await chromium.launch({ headless: false });
-const page = await browser.newPage();
-
-// 1. Navigate to homepage and find the book
-await page.goto("https://thaqalayn.net");
-await page.waitForLoadState("networkidle");
-
-const bookLinks = page.locator("a[href^='/book/']");
-const count = await bookLinks.count();
-
-let bookHref: string | null = null;
-let bookNameActual = "";
-
-for (let i = 0; i < count; i++) {
-    const link = bookLinks.nth(i);
-    const titleEl = link.locator("div.font-bold");
-    if (await titleEl.count() === 0) continue;
-    const raw = (await titleEl.textContent()) ?? "";
-    if (normalize(raw).includes(bookQuery)) {
-        bookNameActual = raw.trim();
-        bookHref = await link.getAttribute("href");
-        console.log(`Found: "${bookNameActual}" → ${bookHref}`);
-        break;
-    }
-}
-
-if (!bookHref) {
-    console.log(`No book found matching "${bookQuery}".`);
-    await browser.close();
+if (!book) {
+    console.error(`No book found matching "${bookQuery}".`);
     process.exit(1);
 }
+console.log(`Found: "${book.name}" → ${book.href}`);
 
-// 2. Create output file immediately
+// 2. Create output file
 const outputDir = path.join(import.meta.dirname, "..", "output");
 fs.mkdirSync(outputDir, { recursive: true });
-const outputPath = path.join(outputDir, `${slugify(bookNameActual)}.json`);
+const outputPath = path.join(outputDir, `${slugify(book.name)}.json`);
 fs.writeFileSync(outputPath, "[]", "utf-8");
-console.log(`Output file created: ${outputPath}`);
+console.log(`Output: ${outputPath}`);
 
-// 3. Navigate to the book page and collect all chapter links
-await page.goto(`https://thaqalayn.net${bookHref}`);
-await page.waitForLoadState("networkidle");
+// 3. Fetch book page → collect chapter hrefs
+const bookHtml = await fetchHtml(`https://thaqalayn.net${book.href}`);
+if (!bookHtml) { console.error("Failed to fetch book page."); process.exit(1); }
 
-const chapterLinks = await page.locator("a[href^='/chapter/']").all();
-const chapterHrefs: string[] = [];
-for (const link of chapterLinks) {
-    const href = await link.getAttribute("href");
-    if (href) chapterHrefs.push(href);
-}
-console.log(`Found ${chapterHrefs.length} chapter(s).`);
+const chapterHrefs = parseChapterLinks(bookHtml);
+console.log(`Chapters found: ${chapterHrefs.length}`);
 
-// 4. Parse book number from the first chapter href: /chapter/{bookId}/{bookNum}/{chapterNum}
-const bookNumberMatch = chapterHrefs[0]?.match(/\/chapter\/\d+\/(\d+)\//);
-const bookNumber = bookNumberMatch ? parseInt(bookNumberMatch[1]) : 0;
+const bookNumMatch = chapterHrefs[0]?.match(/\/chapter\/\d+\/(\d+)\//);
+const bookNumber = bookNumMatch ? parseInt(bookNumMatch[1]) : 0;
 
-// 5. Scrape each chapter
-const allHadiths: Hadith[] = [];
+// 4. Fetch all chapter pages in parallel
+console.log("Fetching chapter pages…");
+const chapterHtmls = await pool(
+    chapterHrefs.map((href) => () => fetchHtml(`https://thaqalayn.net${href}`).then((h) => h ?? "")),
+    CONCURRENCY
+);
 
-for (const chapterHref of chapterHrefs) {
-    await page.goto(`https://thaqalayn.net${chapterHref}`);
-    await page.waitForLoadState("networkidle");
+// 5. Build hadith task list
+const hadithTasks: HadithTask[] = [];
 
-    // Parse chapter metadata from the page
-    const chapterMatch = chapterHref.match(/\/chapter\/\d+\/\d+\/(\d+)/);
-    const chapterNumber = chapterMatch ? parseInt(chapterMatch[1]) : 0;
+for (let ci = 0; ci < chapterHrefs.length; ci++) {
+    const chapterHref = chapterHrefs[ci];
+    const html = chapterHtmls[ci];
+    const chapterNumMatch = chapterHref.match(/\/chapter\/\d+\/\d+\/(\d+)/);
+    const chapterNumber = chapterNumMatch ? parseInt(chapterNumMatch[1]) : ci + 1;
+    const { chapterName, hadithCount } = parseChapterMeta(html);
+    const hadithHrefs = parseHadithLinks(html);
 
-    // Chapter name: the heading between "Book X, Chapter Y" and the hadith list
-    const chapterName = await getText(page, "h1, h2, h3") ?? "";
-
-    // Collect all individual hadith links on this chapter page
-    const hadithLinks = await page.locator("a[href^='/hadith/']").all();
-    const hadithHrefs: string[] = [];
-    for (const link of hadithLinks) {
-        const href = await link.getAttribute("href");
-        if (href && !hadithHrefs.includes(href)) hadithHrefs.push(href);
-    }
-
-    // If the chapter page already shows all ahadith inline (no separate hadith pages),
-    // scrape them directly from the chapter page.
-    if (hadithHrefs.length === 0) {
-        // Scrape inline ahadith blocks
-        const hadithBlocks = await page.locator("div[id^='hadith-'], section[id^='hadith-']").all();
-
-        // Fallback: look for numbered hadith headings and associated paragraphs
-        const headings = await page.locator("h2, h3, h4").all();
-        let hadithNum = 0;
-        for (const heading of headings) {
-            const text = (await heading.textContent())?.trim() ?? "";
-            if (!/^[Ḥh]ad[iī]th\s*#?\d+/i.test(text) && !/^#\d+/.test(text)) continue;
-            hadithNum++;
-
-            // Arabic: next sibling with Arabic text (RTL paragraph)
-            const arabic = await heading.evaluate((el) => {
-                let next = el.nextElementSibling;
-                while (next) {
-                    const dir = next.getAttribute("dir") ?? getComputedStyle(next).direction;
-                    const text = next.textContent?.trim() ?? "";
-                    if ((dir === "rtl" || /[؀-ۿ]/.test(text)) && text.length > 0)
-                        return text;
-                    next = next.nextElementSibling;
-                }
-                return null;
-            });
-
-            // English: next paragraph after Arabic
-            const english = await heading.evaluate((el) => {
-                let next = el.nextElementSibling;
-                let seenArabic = false;
-                while (next) {
-                    const dir = next.getAttribute("dir") ?? getComputedStyle(next).direction;
-                    const text = next.textContent?.trim() ?? "";
-                    if ((dir === "rtl" || /[؀-ۿ]/.test(text)) && text.length > 0) {
-                        seenArabic = true;
-                    } else if (seenArabic && text.length > 0) {
-                        return text;
-                    }
-                    next = next.nextElementSibling;
-                }
-                return null;
-            });
-
-            allHadiths.push({
-                book_name: bookNameActual,
-                book_number: bookNumber,
-                chapter_number: chapterNumber,
-                chapter_name: chapterName,
-                hadith_number: hadithNum,
-                arabic: arabic ?? null,
-                english: english ?? null,
-                url: `https://thaqalayn.net${chapterHref}`,
-            });
+    if (hadithHrefs.length > 0) {
+        for (const href of hadithHrefs) {
+            const numMatch = href.match(/\/(\d+)$/);
+            hadithTasks.push({ href, bookName: book.name, bookNumber, chapterNumber, chapterName, hadithNumber: numMatch ? parseInt(numMatch[1]) : 0 });
         }
-
-        console.log(`  Chapter ${chapterNumber}: scraped ${hadithNum} inline hadith(s).`);
-        continue;
-    }
-
-    // 6. Visit each hadith page
-    console.log(`  Chapter ${chapterNumber} "${chapterName}": ${hadithHrefs.length} hadith page(s).`);
-
-    for (const hadithHref of hadithHrefs) {
-        await page.goto(`https://thaqalayn.net${hadithHref}`);
-        await page.waitForLoadState("networkidle");
-
-        const hadithNumMatch = hadithHref.match(/\/(\d+)$/);
-        const hadithNumber = hadithNumMatch ? parseInt(hadithNumMatch[1]) : 0;
-
-        // Arabic text — look for RTL / Arabic-script content
-        const arabic = await page.evaluate(() => {
-            const candidates = document.querySelectorAll("p, div, span");
-            for (const el of candidates) {
-                const text = el.textContent?.trim() ?? "";
-                if (/[؀-ۿ]{10,}/.test(text) && el.children.length === 0)
-                    return text;
-            }
-            return null;
-        });
-
-        // English translation — first long LTR paragraph after Arabic
-        const english = await page.evaluate(() => {
-            const candidates = document.querySelectorAll("p, div");
-            let seenArabic = false;
-            for (const el of candidates) {
-                const text = el.textContent?.trim() ?? "";
-                if (/[؀-ۿ]{10,}/.test(text)) { seenArabic = true; continue; }
-                if (seenArabic && text.length > 40 && el.children.length === 0) return text;
-            }
-            return null;
-        });
-
-        allHadiths.push({
-            book_name: bookNameActual,
-            book_number: bookNumber,
-            chapter_number: chapterNumber,
-            chapter_name: chapterName,
-            hadith_number: hadithNumber,
-            arabic: arabic ?? null,
-            english: english ?? null,
-            url: `https://thaqalayn.net${hadithHref}`,
-        });
-
-        console.log(`    Hadith ${hadithNumber} ✓`);
+    } else {
+        const [, bookId, bNum, cNum] = chapterHref.split("/").filter(Boolean);
+        for (let h = 1; h <= (hadithCount || 1); h++) {
+            hadithTasks.push({ href: `/hadith/${bookId}/${bNum}/${cNum}/${h}`, bookName: book.name, bookNumber, chapterNumber, chapterName, hadithNumber: h });
+        }
     }
 }
 
-// 7. Save
-fs.writeFileSync(outputPath, JSON.stringify(allHadiths, null, 2), "utf-8");
-console.log(`\nDone. ${allHadiths.length} ahadith saved to ${outputPath}`);
+console.log(`Total ahadith to fetch: ${hadithTasks.length}`);
 
-await browser.close();
+// 6. Fetch and parse all hadith pages in parallel
+let done = 0;
+const hadiths = await pool(
+    hadithTasks.map((task) => async () => {
+        const url = `https://thaqalayn.net${task.href}`;
+        const html = await fetchHtml(url);
+        done++;
+        if (done % 50 === 0 || done === hadithTasks.length)
+            process.stdout.write(`\r  ${done}/${hadithTasks.length} ahadith fetched`);
+        if (!html) return null;
+        return parseHadithPage(html, { bookName: task.bookName, bookNumber: task.bookNumber, chapterNumber: task.chapterNumber, chapterName: task.chapterName, hadithNumber: task.hadithNumber, url });
+    }),
+    CONCURRENCY
+);
+
+// 7. Sort and save
+const validHadiths = (hadiths.filter((h) => h !== null) as Hadith[])
+    .sort((a, b) => a.chapter_number - b.chapter_number || a.hadith_number - b.hadith_number);
+
+fs.writeFileSync(outputPath, JSON.stringify(validHadiths, null, 2), "utf-8");
+console.log(`\n\nDone. ${validHadiths.length} ahadith saved to ${outputPath}`);
