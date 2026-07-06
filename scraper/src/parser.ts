@@ -12,7 +12,7 @@ export function parseChapterLinks(html: string): string[] {
 
 export function parseChapterMeta(html: string): { chapterName: string; hadithCount: number } {
     const root = parseHtml(html);
-    const chapterName = root.querySelector("h1")?.textContent?.trim() ?? "";
+    const chapterName = root.querySelector("div.text-2xl.mt-2")?.textContent?.trim() ?? "";
     const countMatch = root.rawText.match(/(\d+)\s*[AĀā]?[hḥ]ad[iī]th/i);
     const hadithCount = countMatch ? parseInt(countMatch[1]) : 0;
     return { chapterName, hadithCount };
@@ -27,8 +27,6 @@ export function parseHadithLinks(html: string): string[] {
         .filter((h, i, arr) => arr.indexOf(h) === i);
 }
 
-const ARABIC_RE = /[؀-ۿ]/;
-
 export function parseHadithPage(
     html: string,
     meta: {
@@ -41,30 +39,23 @@ export function parseHadithPage(
     }
 ): Hadith {
     const root = parseHtml(html);
-    root.querySelectorAll("nav, footer, header, script, style").forEach((el) => el.remove());
 
-    const paragraphs = root
-        .querySelectorAll("p, div, span, li")
-        .filter((el) => el.childNodes.every((n) => n.nodeType === 3 || (n as any).tagName === undefined || (n as any).childNodes?.length === 0))
-        .map((el) => el.textContent?.trim() ?? "")
-        .filter((t) => t.length > 20);
+    const arabicEl = root.querySelector("p[dir='rtl']");
+    const englishEl = root.querySelector("p.nassim:not([dir='rtl'])");
 
-    let arabic: string | null = null;
-    let english: string | null = null;
-
-    for (const t of paragraphs) {
-        if (!arabic && ARABIC_RE.test(t)) { arabic = t; continue; }
-        if (arabic && !english && !ARABIC_RE.test(t) && t.length > 30) { english = t; break; }
-    }
+    const arabic = arabicEl?.textContent?.trim() || null;
+    const english = englishEl?.textContent?.trim() || null;
 
     return {
         book_name: meta.bookName,
-        book_number: meta.bookNumber,
         chapter_number: meta.chapterNumber,
-        chapter_name: meta.chapterName,
         hadith_number: meta.hadithNumber,
-        arabic,
-        english,
-        url: meta.url,
+        content: english,
+        metadata: {
+            book_number: meta.bookNumber,
+            chapter_name: meta.chapterName,
+            arabic,
+            url: meta.url,
+        },
     };
 }
