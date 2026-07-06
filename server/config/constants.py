@@ -3,21 +3,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 CHAT_PROMPT_PATH = BASE_DIR / "assets" / "prompt.txt"
-CHUNKER_PROMPT_DIR = BASE_DIR / "assets" / "chunking_prompts"
-
-PDF_BOOKS_DIR = BASE_DIR / "assets" / "pdf_books"
-TXT_BOOKS_DIR = BASE_DIR / "assets" / "txt_books"
 PARSED_BOOKS_DIR = BASE_DIR / "assets" / "parsed_books"
-CHUNKED_BOOKS_DIR = BASE_DIR / "assets" / "chunked_books"
 QDRANT_PATH = BASE_DIR / "assets" / "qdrant_data"
 
 CHAT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-
-# CHUNKING
-CHUNKER_MODEL = "mistral-small-2506"
-CHUNK_SIZE = 24000
-MAX_CHUNKING_JOBS_IN_ONE_MIN = 6
-CHUNKER_TIMEOUT_SECS = 300
 
 # EMBEDDING
 EMBEDDING_MODEL = "qwen3-embedding:4b"

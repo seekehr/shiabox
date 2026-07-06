@@ -18,9 +18,17 @@ type PreProps = React.ClassAttributes<HTMLPreElement> & React.HTMLAttributes<HTM
 
 const ParseMD: React.FC<ParseMDProps> = ({ content }) => {
   const processedContent = content
-    .replace(/\s*\*\*\s*(Source|Score)\s*:?\s*\*\*/g, '$1:')
+    // Pull embedded score out of hadith headings: **Hadith 1 (Score: 0.6732)** → **Hadith 1**\n\nScore: 0.6732
+    .replace(/\*\*(Hadith\s+\d+)\s*\(\s*Score:\s*([\d.]+)\s*\)\*\*/gi, '\n\n**$1**\n\nScore: $2')
+    // Strip any remaining standalone **Score:** / **Source:** bold wrappers
+    .replace(/\*\*(Source|Score):?\*\*/g, '$1:')
+    // Ensure Score / Source always have a colon
     .replace(/(Source|Score)(?!:)/g, '$1:')
-    .replace(/(Source:|Score:)/g, '\n\n**$1**');
+    // Add bold + spacing to standalone Score: and Source: lines
+    .replace(/(^|\n)(Score:|Source:)/gm, '\n\n**$2**')
+    // Add a hard line break after the reference marker in Source lines
+    // Handles: "Hadith #584 Ali...", "Chapter 6 O Muslims...", "Sermon 3 ..."
+    .replace(/((?:Hadith\s+#\d+|Chapter\s+\w+|Sermon\s+\w+))[ \t]+(?=\S)/g, '$1  \n');
 
   return (
     <div className="prose prose-invert max-w-none prose-p:text-on-surface prose-headings:text-on-surface prose-strong:text-on-surface prose-a:text-primary">
