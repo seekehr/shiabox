@@ -32,6 +32,7 @@ export function parseHadithPage(
     meta: {
         bookName: string;
         bookNumber: number;
+        volumeNumber: number;
         chapterNumber: number;
         chapterName: string;
         hadithNumber: number;
@@ -48,6 +49,7 @@ export function parseHadithPage(
 
     return {
         book_name: meta.bookName,
+        volume_number: meta.volumeNumber,
         chapter_number: meta.chapterNumber,
         hadith_number: meta.hadithNumber,
         content: english,

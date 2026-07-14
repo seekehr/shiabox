@@ -1,25 +1,31 @@
 # shiabox
-AI-powered (groq) search engine for Shi'a ahadith, utilising a RAG architecture with Qdrant for the vector database, `Gemini` for chunking text into ahadith and `qwen3-embedding:4b` for embeddings.
+
+AI-powered (Groq) search engine for Shi'a ahadith, using a RAG architecture with Qdrant for the vector database and `qwen3-embedding:4b` for embeddings.
 
 # How does it work?
 
-First of all, we must understand what RAG is. RAG basically allows you to provide up-to-date, or selective information to the AI, and then generate a response based on that. The information, in this case, are the **ahadith** that we obtain.
+RAG lets you ground an AI response in a selective corpus — here, **ahadith** scraped from [thaqalayn.net](https://thaqalayn.net) and indexed in Qdrant.
 
-### How do we obtain the ahadith?
+### Step 1: Scrape ahadith
 
-First, we download the .pdf obtained from the internet, and convert it using `pdftotext` by Popper's Utils with a special encoding to remove any Arabic text (as the models we use are not specialized in Arabic and it would be a hassle and waste of tokens to keep). Then, we use `server/assets/current_book_parser_prompt.txt` as the prompt, and ask the Gemini [TODO: REVIEW MODEL LATER] chunking model to chunk our book into ahadith and store it in a `.json` format. And so, we can easily use the ahadith for whatever we want.
+The TypeScript scraper in [`scraper/`](scraper/) opens thaqalayn.net with Playwright to find a book (and its volumes), then fetches chapter and hadith pages over HTTP and writes structured JSON to `scraper/output/`.
 
-### Step 2: Embedding the ahadith and saving them in our Qdrant database
+Each hadith includes English text (`content`), Arabic (`metadata.arabic`), chapter/volume numbers, and a source URL. See [`scraper/README.md`](scraper/README.md) for install and usage.
 
-Just raw .json is not enough. It'd be a massive waste of tokens, and a performance liability if we were to just feed the entire .json to the chatting AI model. Not only that, it would also be not scalable at all because more books would slow down the performance significantly.
+### Step 2: Embed the ahadith into Qdrant
 
-So, what's the solution? We send the chatting AI the most relevant ahadith (**10**, in our case) and let it pick the **3** most relevant ones from those. For this to happen, we must first convert our ahadith into matrices that preserve tone and grammar, that AI can easily understand, and save them in an advanced 'mathematical innovation' points database.
+Raw JSON alone is too large to send to the chat model on every query. Instead, each hadith is embedded with Ollama (`qwen3-embedding:4b`) and stored in an on-disk Qdrant collection under `server/assets/qdrant_data`.
 
-### Step 3: Find top 10 ahadith from vector, feed to AI, stream back response
+At query time we retrieve the top **10** nearest ahadith and let the chat model pick the **3** most relevant ones.
 
-First of all, we embed (i.e convert into matrices, like earlier) the prompt the user sends using our embedding model. Then, we compare this embedded prompt to other matrices in the vector database using built-in functions of Qdrant. The top 10 most similar points are sent back to us, and we send these 10 ahadith to the AI with a special system prompt written in `server/assets/prompt.txt`.
+### Step 3: Search, rank, and stream a response
+
+The user's prompt is embedded the same way, compared against the vector index, and the top matches are sent to Groq with the system prompt in [`server/assets/prompt.txt`](server/assets/prompt.txt). The reply is streamed back over HTTP (or the CLI).
 
 # Installation Guide
-Read [INSTALLATION GUIDE](INSTALLING.md).
+
+See [INSTALLING.md](INSTALLING.md).
+
 # Preview
+
 ![alt text](https://github.com/seekehr/shiabox/blob/main/server/assets/images/readme_preview_1.png "Example 1")
