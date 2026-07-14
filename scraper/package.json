@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsx src/thaqalayn.ts"
+    "start": "node init && tsx src/thaqalayn.ts"
   },
   "keywords": [],
   "author": "",
